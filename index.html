@@ -220,8 +220,82 @@ document.addEventListener('toggle', e => {
   if (k) menuOpen[k] = e.target.open;
 }, true);
 let lastTs = null, lastSave = 0, lastBoxRender = 0;
+let subQ = null, subForm = null, endBanner = null, lineupCtx = null;
 
-function save() { if (S) saveJSON(KEY, S); lastSave = performance.now(); }
+function save() { if (S) { recompute(S); saveJSON(KEY, S); } lastSave = performance.now(); }
+
+/* ---------- periodi, quintetti e cambi (timeline) ---------- */
+const periodLen = (g, q) => q <= g.nq ? g.qlen : 300;
+const myTeam = g => { const i = g.teams.findIndex(T => !T.isOpp); return i < 0 ? 0 : i; };
+const bySubTime = (a, b) => b.c - a.c || a.seq - b.seq;
+function lineupAt(g, q, t, c) {
+  const L = ((g.starts && g.starts[q] && g.starts[q][t]) || []).slice();
+  (g.subs || []).filter(s => s.t === t && s.q === q && s.c >= c).sort(bySubTime).forEach(s => {
+    const i = L.indexOf(s.out); if (i >= 0) L[i] = s.in;
+  });
+  return L;
+}
+function validateSubs(g, q, t) {
+  const L = ((g.starts && g.starts[q] && g.starts[q][t]) || []).slice();
+  const nm = id => { const p = findPlayer(g, id); return p ? label(p) : '?'; };
+  const subs = (g.subs || []).filter(s => s.t === t && s.q === q).sort(bySubTime);
+  for (const s of subs) {
+    const i = L.indexOf(s.out);
+    if (i < 0) return nm(s.out) + ' non è in campo a ' + fmt(s.c) + '.';
+    if (L.includes(s.in)) return nm(s.in) + ' è già in campo a ' + fmt(s.c) + '.';
+    L[i] = s.in;
+  }
+  return null;
+}
+function syncOnCourt(g) {
+  let changed = false;
+  g.teams.forEach((T, t) => {
+    if (T.isOpp) return;
+    const L = lineupAt(g, g.quarter, t, g.clock);
+    if (JSON.stringify(L) !== JSON.stringify(T.onCourt)) { T.onCourt = L; changed = true; }
+  });
+  return changed;
+}
+/* minuti giocati, plus/minus e falli di squadra si ricavano dalla timeline: starts + subs + pts */
+function recompute(g) {
+  if (!g || !g.starts) return;
+  g.clocks = g.clocks || {}; g.clocks[g.quarter] = g.clock;
+  const sec = {}, pm = {};
+  g.teams.forEach(T => T.players.forEach(p => { sec[p.id] = 0; pm[p.id] = 0; }));
+  const maxq = g.maxq || g.quarter;
+  g.teams.forEach((T, t) => {
+    if (T.isOpp) return;
+    for (let q = 1; q <= maxq; q++) {
+      if (!g.starts[q]) continue;
+      const end = q === g.quarter ? g.clock : (g.clocks[q] != null ? g.clocks[q] : 0);
+      const L = (g.starts[q][t] || []).slice();
+      let cur = periodLen(g, q);
+      (g.subs || []).filter(s => s.t === t && s.q === q && s.c >= end).sort(bySubTime).forEach(s => {
+        const cc = Math.min(cur, s.c);
+        L.forEach(id => { if (id in sec) sec[id] += cur - cc; });
+        const i = L.indexOf(s.out); if (i >= 0) L[i] = s.in;
+        cur = cc;
+      });
+      L.forEach(id => { if (id in sec) sec[id] += Math.max(0, cur - end); });
+    }
+  });
+  (g.pts || []).forEach(e => g.teams.forEach((T, t) => {
+    if (T.isOpp) return;
+    lineupAt(g, e.q, t, e.c).forEach(id => { if (id in pm) pm[id] += (e.t === t ? e.n : -e.n); });
+  }));
+  Object.keys(g.stats).forEach(id => { if (id in sec) { g.stats[id].sec = sec[id]; g.stats[id].pm = pm[id]; } });
+  if (g.fouls) {
+    g.tf = [0, 0];
+    g.fouls.forEach(x => { if (x.q !== g.quarter) return; const F = FOULS[x.type]; if (F ? F.tm : x.type !== 'T') g.tf[x.t]++; });
+  }
+  syncOnCourt(g);
+}
+function migrate(g) {
+  if (!g || g.starts) return;
+  const q = g.quarter || 1;
+  g.maxq = q; g.clocks = {}; g.clocks[q] = g.clock; g.subs = []; g.pts = []; g.seq = 0;
+  g.starts = {}; g.starts[q] = g.teams.map(T => T.isOpp ? [] : (T.onCourt || []).slice());
+}
 
 /* ---------- creazione partita ---------- */
 function parseRoster(text, ti) {
@@ -240,7 +314,8 @@ function newGame(cfg) {
   const stats = {};
   teams.forEach(t => t.players.forEach(p => stats[p.id] = STAT0()));
   return {id: Date.now(), date: new Date().toISOString(), name: cfg.name || '', colors: cfg.colors || null, teams, stats, shots: [], to: [[], []], oppStats: {m1:0,m2:0,m3:0,pf:0}, score: [0,0],
-          quarter: 1, qlen: cfg.qlen * 60, nq: cfg.nq, clock: cfg.qlen * 60, running: false, tf: [0,0], log: []};
+          quarter: 1, qlen: cfg.qlen * 60, nq: cfg.nq, clock: cfg.qlen * 60, running: false, tf: [0,0], log: [],
+          starts: {1: teams.map(T => T.isOpp ? [] : T.players.slice(0, 5).map(p => p.id))}, subs: [], pts: [], clocks: {1: cfg.qlen * 60}, maxq: 1, seq: 0};
 }
 function defaultRoster() { let r = []; for (let n = 4; n <= 15; n++) r.push(n + ' Giocatore ' + n); return r.join('\n'); }
 function defaultTeams() { return {opp: {name: 'Avversari', roster: defaultRoster()}, qlen: 10, nq: 4}; }
@@ -251,11 +326,10 @@ const label = p => (p.num !== '' ? '#' + p.num + ' ' : '') + p.name;
 const jc = t => !S || !S.colors ? '' : (S.colors[t] === 'blue' ? 'jb' : (S.colors[t] === 'white' ? 'jw' : ''));
 const chip = t => jc(t) ? '<i class="chip ' + jc(t) + '"></i>' : '';
 function snap() { undoStack.push(JSON.stringify(S)); if (undoStack.length > 200) undoStack.shift(); }
-function addLog(msg) { S.log.push({q: S.quarter, c: S.clock, msg}); }
+function addLog(msg, q, c) { S.log.push({q: q != null ? q : S.quarter, c: c != null ? c : S.clock, msg}); }
 function addPoints(t, pid, n) {
   S.stats[pid].pts += n; S.score[t] += n;
-  S.teams[t].onCourt.forEach(id => S.stats[id].pm += n);
-  S.teams[1-t].onCourt.forEach(id => S.stats[id].pm -= n);
+  (S.pts = S.pts || []).push({t, n, q: S.quarter, c: S.clock});
 }
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.style.display = 'block';
@@ -438,11 +512,11 @@ function oppAction(t, k) {
     const n = +k[1];
     if (o['m' + n] < 1) { undoStack.pop(); toast('Nessun punto da togliere'); return; }
     o['m' + n]--; S.score[t] -= n;
-    S.teams[1 - t].onCourt.forEach(id => S.stats[id].pm += n);
+    (S.pts = S.pts || []).push({t, n: -n, q: S.quarter, c: S.clock});
     addLog(T.name + ': Correzione −' + n + '  [' + S.score[0] + '-' + S.score[1] + ']');
   } else {
     const n = +k[1]; o[k]++; S.score[t] += n;
-    S.teams[1 - t].onCourt.forEach(id => S.stats[id].pm -= n);
+    (S.pts = S.pts || []).push({t, n, q: S.quarter, c: S.clock});
     addLog(T.name + ': ' + (n === 1 ? 'Tiro libero a segno' : 'Canestro da ' + n) + '  [' + S.score[0] + '-' + S.score[1] + ']');
   }
   save(); render();
@@ -689,7 +763,7 @@ function renderMenu() {
 function archiveCurrent() {
   if (!S) return;
   const hist = loadJSON(HKEY) || [];
-  S.running = false; hist.unshift(S); saveJSON(HKEY, hist.slice(0, 40));
+  S.running = false; recompute(S); hist.unshift(S); saveJSON(HKEY, hist.slice(0, 40));
 }
 let startCtx = null;
 function startNewGame() {
