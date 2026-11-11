@@ -110,6 +110,16 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .xtra b{display:block;font-size:17px}
 .xtra .xto{background:#16253f;border-color:#2f4b7c}
 .xtra .over{background:#431616;border-color:var(--ko)}
+.endrow{margin-top:14px}
+.endbtn{flex:0 0 auto;max-width:260px;margin:0 auto;background:#3a1620;border-color:#7f1d1d;font-weight:700}
+.stepgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
+.stp{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:6px 8px}
+.stp .sl{font-size:13px;color:var(--mut);text-align:center;margin-bottom:4px}
+.stp .sr{display:flex;align-items:center;gap:6px}
+.stp .sr button{flex:0 0 52px;min-height:50px;font-size:26px;font-weight:800;padding:0;line-height:1}
+.stp .sr .sp{background:#12391f;border-color:var(--ok)}
+.stp .sr .sm{background:#431616;border-color:#7f1d1d}
+.stp .sv{flex:1;text-align:center;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
 .fh{color:var(--mut);font-size:13px;margin:10px 0 4px}
 .fgrp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .fgrp button{min-height:54px;font-weight:800;font-size:18px}
@@ -335,11 +345,73 @@ function toSum(g, t) {
   const nm = h => h === 'h1' ? '1° tempo' : h === 'h2' ? '2° tempo' : 'supplementare ' + h.slice(2).replace(/^\d+$/, q => (q - g.nq));
   return '<div class="pct">Timeout: ' + l.length + ' (' + Object.keys(c).map(h => nm(h) + ' ' + c[h]).join(' · ') + ')</div>';
 }
+/* ---------- chiusura partita ---------- */
+function endGame() {
+  if (!S) return;
+  const early = S.clock > 0 || S.quarter < S.nq;
+  const msg = 'Chiudere la partita? ' + S.teams[0].name + ' ' + S.score[0] + ' – ' + S.score[1] + ' ' + S.teams[1].name +
+    (early ? '\n\nIl tempo non è finito: la partita viene chiusa in anticipo.' : '') +
+    '\n\nVerrà archiviata: dal Menu potrai rivederla, esportarla o riprenderla.';
+  if (!confirm(msg)) return;
+  S.running = false; wake(false);
+  addLog(early ? 'Partita chiusa in anticipo' : 'Fine partita');
+  S.ended = true; S.endedAt = new Date().toISOString();
+  const g = S; archiveCurrent();
+  try { localStorage.removeItem(KEY); } catch (e) {}
+  S = null; sel = null; undoStack = []; view = 'menu'; render();
+  openModal('<h3>Partita chiusa</h3>' + (g.name ? '<div style="color:var(--acc);font-weight:700">' + esc(g.name) + '</div>' : '') +
+    '<div style="font-size:22px;font-weight:700;margin:8px 0 14px">' + esc(g.teams[0].name) + ' ' + g.score[0] + ' – ' + g.score[1] + ' ' + esc(g.teams[1].name) + '</div>' +
+    '<div class="row"><button data-a="hview" data-id="' + g.id + '">Box score</button><button data-a="hcsv" data-id="' + g.id + '">Esporta CSV</button><button data-a="closemodal">Chiudi</button></div>');
+}
+function resumeGame(id) {
+  if (S) { toast('Termina prima la partita in corso'); return; }
+  const hist = loadJSON(HKEY) || [], g = hist.find(x => String(x.id) === String(id)); if (!g) return;
+  if (!confirm('Riprendere questa partita?')) return;
+  saveJSON(HKEY, hist.filter(x => String(x.id) !== String(id)));
+  delete g.ended; delete g.endedAt; g.running = false;
+  S = g; sel = null; undoStack = []; view = 'game'; save(); render();
+}
+
+/* ---------- esporta / importa la squadra ---------- */
+function exportTeam() {
+  const r = getRoster();
+  if (!r.players.length) { toast('Nessun giocatore da esportare'); return; }
+  const data = {type: 'basketstats-team', version: 1, name: r.name, players: r.players.map(p => ({num: p.num, name: p.name}))};
+  download((r.name || 'squadra').replace(/[^\w\-]+/g, '_') + '_squadra.json', JSON.stringify(data, null, 2), 'application/json');
+}
+function importTeam(file) {
+  const rd = new FileReader();
+  rd.onload = () => {
+    try {
+      const d = JSON.parse(rd.result);
+      if (!d || d.type !== 'basketstats-team' || !Array.isArray(d.players)) throw 0;
+      const stamp = Date.now();
+      const players = d.players.filter(p => p && (p.num !== undefined || p.name)).map((p, i) =>
+        ({id: 'p' + stamp + '_' + i, num: String(p.num ?? ''), name: String(p.name || ('Giocatore ' + p.num))}));
+      if (!players.length) throw 0;
+      const cur = getRoster();
+      if (cur.players.length && !confirm('Sostituire la squadra attuale (' + cur.players.length + ' giocatori) con quella del file (' + players.length + ' giocatori)?')) return;
+      players.sort(byNum);
+      saveJSON(RKEY, {name: String(d.name || cur.name || 'La mia squadra'), players});
+      const c = getConv(); c.sel = []; c.starters = []; saveJSON(CKEY, c);
+      menuOpen.roster = true; render(); toast('Squadra importata: ' + players.length + ' giocatori');
+    } catch (e) { toast('File squadra non valido'); }
+  };
+  rd.readAsText(file);
+}
 function stat(k) {
   if (!sel) { toast('Tocca prima un giocatore'); return; }
   if (k === 'pf') { openFoul(sel.t, sel.pid); return; }
   if (/^[mx][23]$/.test(k) && askLoc) { openShot(k); return; }
   apply(k, sel.t, sel.pid, null);
+}
+function statDec(k) {
+  if (!sel) { toast('Tocca prima un giocatore'); return; }
+  const st = S.stats[sel.pid];
+  if (!st[k]) { toast('Già a zero'); return; }
+  snap(); st[k]--;
+  addLog(label(findPlayer(S, sel.pid)) + ' (' + S.teams[sel.t].name + '): Correzione −1 ' + NAMES[k].toLowerCase());
+  save(); render();
 }
 function apply(k, t, pid, loc) {
   snap();
@@ -420,7 +492,7 @@ function nextPeriod() {
   if (S.running) { S.running = false; wake(false); }
   if (S.clock > 0 && !confirm('Il tempo non è finito. Passare al periodo successivo?')) { render(); return; }
   if (S.quarter >= S.nq) {
-    if (S.score[0] !== S.score[1]) { toast('Partita finita: archiviala dal Menu'); return; }
+    if (S.score[0] !== S.score[1]) { toast('Partita finita: premi "Termina partita" per archiviarla'); return; }
     if (!confirm('Pareggio. Iniziare un supplementare da 5 minuti?')) return;
   }
   S.quarter++; S.clock = S.quarter <= S.nq ? S.qlen : 300; S.tf = [0,0]; undoStack = [];
@@ -513,8 +585,10 @@ function padHTML() {
   return '<div class="pad"><div class="who">' + (p ? esc(label(p)) + ' <span class="mut">(' + esc(S.teams[sel.t].name) + ')</span>' : '<span class="mut">Tocca un giocatore</span>') + '</div><div class="grid3">' +
     b('ok', 'm1', '+1 TL') + b('ok', 'm2', '+2') + b('ok', 'm3', '+3') +
     b('ko', 'x1', 'TL ✕') + b('ko', 'x2', '2 ✕') + b('ko', 'x3', '3 ✕') +
-    b('', 'oreb', 'Rimb. OFF') + b('', 'dreb', 'Rimb. DIF') + b('', 'ast', 'Assist') +
-    b('', 'stl', 'Recupero') + b('', 'blk', 'Stoppata') + b('', 'to', 'Persa') +
+    '</div><div class="stepgrid">' + [['oreb', 'Rimb. OFF'], ['dreb', 'Rimb. DIF'], ['ast', 'Assist'], ['stl', 'Recupero'], ['blk', 'Stoppata'], ['to', 'Perse']].map(([k, n]) => {
+      const v = sel ? S.stats[sel.pid][k] : null;
+      return '<div class="stp"><div class="sl">' + n + '</div><div class="sr"><button class="sm" data-a="sd" data-k="' + k + '"' + (v ? '' : ' disabled') + ' aria-label="Togli uno: ' + n + '">−</button><span class="sv">' + (v === null ? '–' : v) + '</span><button class="sp" data-a="s" data-k="' + k + '"' + d + ' aria-label="Aggiungi uno: ' + n + '">+</button></div></div>';
+    }).join('') + '</div><div class="grid3" style="margin-top:8px">' +
     b('', 'pf', 'Fallo') +
     '<button class="ut" data-a="sub"' + d + '>Cambio</button>' +
     '<button class="ut" data-a="undo">↶ Annulla</button></div></div>';
@@ -526,7 +600,8 @@ function renderGame() {
     '<div class="sbm"><div class="per">' + per + '</div><div class="clk" id="clock" data-a="editclock">' + fmt(S.clock) + '</div>' +
     '<div class="sbb"><button class="' + (S.running ? 'stop' : 'go') + '" data-a="toggle">' + (S.running ? '⏸ Stop' : '▶ Avvia') + '</button><button data-a="nextper">Periodo ▸</button></div></div>' +
     '<div class="sbt"><div class="tn">' + chip(1) + esc(S.teams[1].name) + '</div><div class="sc">' + S.score[1] + '</div></div></div>' +
-    '<div class="board">' + teamCol(0) + padHTML() + teamCol(1) + '</div>';
+    '<div class="board">' + teamCol(0) + padHTML() + teamCol(1) + '</div>' +
+    '<div class="row endrow"><button class="endbtn" data-a="endgame">Termina partita</button></div>';
 }
 
 const COLS = ['#','Giocatore','MIN','PTS','TC','3P','TL','RO','RD','RT','AS','RUB','STO','PP','F','+/-'];
@@ -580,7 +655,7 @@ function renderMenu() {
   let h = '';
   if (S) {
     h += '<div class="card"><h3>Partita corrente</h3>' + (S.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(S.name) + '</div>' : '') + '<div>' + esc(S.teams[0].name) + ' <b>' + S.score[0] + ' – ' + S.score[1] + '</b> ' + esc(S.teams[1].name) + '</div>' +
-      '<div class="row"><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
+      '<div class="row"><button class="stop" data-a="endgame">Termina partita</button><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
       '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div></div>';
   }
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
@@ -588,7 +663,8 @@ function renderMenu() {
   h += '<details class="card" data-k="roster"' + (roOpen ? ' open' : '') + '><summary><b>La mia squadra</b> <span class="mut">(' + R.players.length + ' giocatori)</span></summary>' +
     '<label>Nome squadra</label><input id="rname" value="' + esc(R.name) + '">' +
     '<div style="margin-top:10px">' + (R.players.length ? R.players.map(p => '<div class="hi"><div><b style="color:var(--acc)">' + esc(p.num) + '</b> ' + esc(p.name) + '</div><div class="b"><button data-a="editmy" data-id="' + p.id + '">Modifica</button><button data-a="delmy" data-id="' + p.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessun giocatore salvato.</span>') + '</div>' +
-    '<div class="row" style="margin-top:12px"><input id="rp-n" placeholder="N°" inputmode="numeric" style="max-width:90px;flex:0 0 90px"><input id="rp-m" placeholder="Cognome"><button data-a="addmy" style="flex:0 0 auto">+ Aggiungi</button></div></details>';
+    '<div class="row" style="margin-top:12px"><input id="rp-n" placeholder="N°" inputmode="numeric" style="max-width:90px;flex:0 0 90px"><input id="rp-m" placeholder="Cognome"><button data-a="addmy" style="flex:0 0 auto">+ Aggiungi</button></div>' +
+    '<div class="row"><button data-a="expteam">Esporta squadra (file)</button></div><label>Importa squadra da file</label><input type="file" id="impteam" accept=".json,application/json"></details>';
   const mineHTML = R.players.length
     ? '<label>Convocati — <span id="cvcount"></span></label>' + R.players.map(p => '<div class="cv"><label class="chk"><input type="checkbox" data-cv="sel" data-id="' + p.id + '"' + (C.sel.includes(p.id) ? ' checked' : '') + '><b style="color:var(--acc);min-width:28px">' + esc(p.num) + '</b> ' + esc(p.name) + '</label></div>').join('')
     : '<p class="mut">Aggiungi prima i giocatori in "La mia squadra" qui sopra.</p>';
@@ -603,7 +679,7 @@ function renderMenu() {
     '<p class="mut" style="font-size:14px">Il quintetto iniziale si sceglie dopo aver premuto "Inizia partita".</p>'+
     '<div class="row"><button class="go" data-a="newgame">Inizia partita' + (S ? ' (archivia la corrente)' : '') + '</button></div></details>';
   h += '<div class="card"><h3>Partite archiviate</h3>' + (hist.length ? hist.map(g =>
-    '<div class="hi"><div>' + (g.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(g.name) + '</div>' : '') + esc(g.teams[0].name) + ' <b>' + g.score[0] + '–' + g.score[1] + '</b> ' + esc(g.teams[1].name) + '<div class="mut" style="font-size:13px">' + new Date(g.date).toLocaleString('it-IT') + '</div></div><div class="b"><button data-a="hview" data-id="' + g.id + '">Vedi</button><button data-a="hcsv" data-id="' + g.id + '">CSV</button><button data-a="hdel" data-id="' + g.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessuna.</span>') + '</div>';
+    '<div class="hi"><div>' + (g.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(g.name) + '</div>' : '') + esc(g.teams[0].name) + ' <b>' + g.score[0] + '–' + g.score[1] + '</b> ' + esc(g.teams[1].name) + '<div class="mut" style="font-size:13px">' + new Date(g.date).toLocaleString('it-IT') + '</div></div><div class="b"><button data-a="hres" data-id="' + g.id + '">Riprendi</button><button data-a="hview" data-id="' + g.id + '">Vedi</button><button data-a="hcsv" data-id="' + g.id + '">CSV</button><button data-a="hdel" data-id="' + g.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessuna.</span>') + '</div>';
   h += '<div class="card"><h3>Importa partita</h3><div class="mut" style="margin-bottom:8px">Per spostare una partita da un dispositivo all\'altro: esporta il JSON e importalo qui.</div><input type="file" id="imp" accept=".json,application/json"></div>';
   $('#v-menu').innerHTML = h;
   updateConvUI(C);
@@ -696,6 +772,10 @@ const H = {
   newgame: startNewGame,
   stpick: b => pickStarter(b.dataset.id),
   stgo: launchGame,
+  sd: b => statDec(b.dataset.k),
+  endgame: endGame,
+  hres: b => resumeGame(b.dataset.id),
+  expteam: exportTeam,
   to: b => doTimeout(+b.dataset.t),
   cb: b => benchFoul(+b.dataset.t, b.dataset.k),
   foul: b => doFoul(b.dataset.ft),
@@ -727,6 +807,7 @@ document.addEventListener('change', e => {
   const id = e.target.id;
   if (e.target.dataset && e.target.dataset.cv) { convChange(e.target); return; }
   if (id === 'cside') { const c = getConv(); c.side = +e.target.value; saveJSON(CKEY, c); return; }
+  if (id === 'impteam') { if (e.target.files[0]) importTeam(e.target.files[0]); return; }
   if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveJSON(RKEY, r); return; }
   if (id === 'sf-t') { shotFilter = {t: e.target.value, pid: 'all'}; render(); }
   else if (id === 'sf-p') { shotFilter.pid = e.target.value; render(); }
