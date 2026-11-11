@@ -33,6 +33,8 @@ I dati restano nel browser del dispositivo in cui li inserisci. Per spostare una
 1. Menu → "La mia squadra": salva una volta sola i tuoi giocatori (numero e cognome)
 2. Menu → "Nuova partita": dai un nome alla partita (facoltativo), scrivi il nome degli avversari, scegli In casa/In trasferta e il colore della tua maglia (bianca o blu, gli avversari avranno l'altro), spunta i 12 convocati → Inizia partita
    (a quel punto ti viene chiesto il quintetto iniziale: tocca i 5 che partono e conferma)
-3. Avvia il cronometro, tocca il giocatore, poi l'azione. Per gli avversari ci sono solo i pulsanti +1, +2, +3 e Fallo (niente giocatori)
+3. Avvia il cronometro, tocca il giocatore, poi l'azione. Per gli avversari ci sono solo i pulsanti +1, +2, +3 e Fallo, più −1, −2, −3 per correggere un punto dato per errore (niente giocatori)
 4. Per un cambio: tocca chi esce, poi "Cambio" e scegli chi entra
-5. Errore? "Annulla"
+5. Premendo "Fallo" (tuo o avversario) si apre la finestra con i codici del referto: P, P1-P3 (personale con 1-3 liberi), U1-U3 (antisportivo), D1-D3 (squalificante), T1 (tecnico giocatore), C1 (tecnico allenatore), B1 (tecnico panchina), F (rissa). T1 conta al giocatore ma non alla squadra; C1 e B1 non contano né al giocatore né alla squadra
+6. In fondo a ogni squadra ci sono tre pulsanti: Timeout (conta quelli usati nel tempo, es. 1/2 nel primo tempo, x/3 nel secondo, 1 per supplementare; ferma il cronometro), Coach C1 e Panchina B1 (falli tecnici, non contano né al giocatore né alla squadra)
+7. Errore? "Annulla"

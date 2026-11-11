@@ -92,6 +92,8 @@ summary{cursor:pointer;padding:4px 0}
 .grid2 button{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px}
 .grid2 .ok{background:#12391f;border-color:var(--ok)}
 .grid2 .ko{background:#431616;border-color:#7f1d1d}
+.grid3m{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid3m .sm{min-height:48px;font-size:20px;font-weight:800}
 .ob{font-size:34px;font-weight:800;line-height:1}
 .os{font-size:12px;color:var(--mut)}
 table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
@@ -103,6 +105,14 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .gname{text-align:center;color:var(--acc);font-weight:700;margin:0 0 6px}
 .cbtn{min-height:52px;font-weight:700}
 .cbtn.on{outline:3px solid var(--acc);background:#2a2f45}
+.xtra{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:2px}
+.xtra button{padding:8px 4px;font-size:13px;min-height:52px;line-height:1.2}
+.xtra b{display:block;font-size:17px}
+.xtra .xto{background:#16253f;border-color:#2f4b7c}
+.xtra .over{background:#431616;border-color:var(--ko)}
+.fh{color:var(--mut);font-size:13px;margin:10px 0 4px}
+.fgrp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.fgrp button{min-height:54px;font-weight:800;font-size:18px}
 .cv{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
 .cv .chk{gap:10px}
 .cv .chk input{width:24px;height:24px}
@@ -219,7 +229,7 @@ function newGame(cfg) {
   });
   const stats = {};
   teams.forEach(t => t.players.forEach(p => stats[p.id] = STAT0()));
-  return {id: Date.now(), date: new Date().toISOString(), name: cfg.name || '', colors: cfg.colors || null, teams, stats, shots: [], oppStats: {m1:0,m2:0,m3:0,pf:0}, score: [0,0],
+  return {id: Date.now(), date: new Date().toISOString(), name: cfg.name || '', colors: cfg.colors || null, teams, stats, shots: [], to: [[], []], oppStats: {m1:0,m2:0,m3:0,pf:0}, score: [0,0],
           quarter: 1, qlen: cfg.qlen * 60, nq: cfg.nq, clock: cfg.qlen * 60, running: false, tf: [0,0], log: []};
 }
 function defaultRoster() { let r = []; for (let n = 4; n <= 15; n++) r.push(n + ' Giocatore ' + n); return r.join('\n'); }
@@ -249,8 +259,85 @@ const NAMES = {m1:'Tiro libero a segno',x1:'Tiro libero sbagliato',m2:'Canestro 
   m3:'Canestro da 3',x3:'Tiro da 3 sbagliato',oreb:'Rimbalzo offensivo',dreb:'Rimbalzo difensivo',ast:'Assist',
   stl:'Recupero',blk:'Stoppata',to:'Palla persa',pf:'Fallo'};
 
+/* Codici dei falli (come sul referto): lettera = tipo, numero = tiri liberi.
+   pl = conta al giocatore, tm = conta ai falli di squadra */
+const FOULS = {
+  P:  {n: 'Personale',                 pl: 1, tm: 1},
+  P1: {n: 'Personale · 1 libero',      pl: 1, tm: 1},
+  P2: {n: 'Personale · 2 liberi',      pl: 1, tm: 1},
+  P3: {n: 'Personale · 3 liberi',      pl: 1, tm: 1},
+  U1: {n: 'Antisportivo · 1 libero',   pl: 1, tm: 1},
+  U2: {n: 'Antisportivo · 2 liberi',   pl: 1, tm: 1},
+  U3: {n: 'Antisportivo · 3 liberi',   pl: 1, tm: 1},
+  D1: {n: 'Squalificante · 1 libero',  pl: 1, tm: 1},
+  D2: {n: 'Squalificante · 2 liberi',  pl: 1, tm: 1},
+  D3: {n: 'Squalificante · 3 liberi',  pl: 1, tm: 1},
+  T1: {n: 'Tecnico giocatore · 1 libero', pl: 1, tm: 0},
+  C1: {n: 'Tecnico allenatore · 1 libero', pl: 0, tm: 0},
+  B1: {n: 'Tecnico panchina · 1 libero',   pl: 0, tm: 0},
+  F:  {n: 'Rissa',                     pl: 1, tm: 1}
+};
+const FOUL_GROUPS = [['Personale', ['P', 'P1', 'P2', 'P3']], ['Antisportivo', ['U1', 'U2', 'U3']], ['Squalificante', ['D1', 'D2', 'D3']],
+                     ['Tecnico e altri', ['T1', 'C1', 'B1', 'F']]];
+let foulCtx = null;
+function openFoul(t, pid) {
+  foulCtx = {t, pid};
+  const who = pid ? label(findPlayer(S, pid)) + ' (' + S.teams[t].name + ')' : S.teams[t].name;
+  openModal('<h3>Tipo di fallo</h3><div class="mut" style="margin-bottom:4px">' + esc(who) + '</div>' +
+    FOUL_GROUPS.map(([g, ks]) => '<div class="fh">' + g + '</div><div class="fgrp">' + ks.map(k => '<button class="' + (k === 'P' ? 'ko' : 'ut') + '" data-a="foul" data-ft="' + k + '" title="' + esc(FOULS[k].n) + '">' + k + '</button>').join('') + '</div>').join('') +
+    '<div class="mut" style="font-size:13px;margin:10px 0">La cifra indica i tiri liberi. T1 conta al giocatore ma non alla squadra; C1 (allenatore) e B1 (panchina) non contano né al giocatore né alla squadra.</div><button data-a="closemodal">Annulla</button>');
+}
+function doFoul(ft) {
+  const x = foulCtx, F = FOULS[ft]; if (!x || !F) return;
+  snap();
+  S.fouls = S.fouls || [];
+  const pid = F.pl ? x.pid : null;
+  S.fouls.push({t: x.t, pid, type: ft, q: S.quarter, c: S.clock});
+  if (F.pl) { if (pid) S.stats[pid].pf++; else S.oppStats.pf++; }
+  if (F.tm) S.tf[x.t]++;
+  const who = pid ? label(findPlayer(S, pid)) + ' (' + S.teams[x.t].name + ')' : S.teams[x.t].name;
+  addLog(who + ': Fallo ' + ft + ' – ' + F.n.toLowerCase() + (F.tm ? '' : ' (non di squadra' + (F.pl ? '' : ', non al giocatore') + ')'));
+  foulCtx = null; closeModal(); save(); render();
+}
+function foulSum(g, t) {
+  const f = (g.fouls || []).filter(x => x.t === t);
+  if (!f.length) return '';
+  const c = {}; f.forEach(x => c[x.type] = (c[x.type] || 0) + 1);
+  const keys = Object.keys(FOULS).filter(k => c[k]).concat(Object.keys(c).filter(k => !FOULS[k]));
+  return '<div class="pct">Falli: ' + keys.map(k => k + ' ×' + c[k]).join(' · ') + '</div>';
+}
+/* ---------- timeout, coach e panchina ---------- */
+const halfOf = (g, q) => q > g.nq ? 'ot' + q : (q <= Math.ceil(g.nq / 2) ? 'h1' : 'h2');
+const toAllow = (g, q) => q > g.nq ? 1 : (q <= Math.ceil(g.nq / 2) ? 2 : 3);
+const toList = (g, t) => (g.to && g.to[t]) || [];
+const toUsed = (g, t) => toList(g, t).filter(x => halfOf(g, x.q) === halfOf(g, g.quarter)).length;
+const benchCount = (g, t, k) => (g.fouls || []).filter(x => x.t === t && x.type === k).length;
+function doTimeout(t) {
+  snap();
+  S.to = S.to || [[], []];
+  const used = toUsed(S, t), allow = toAllow(S, S.quarter);
+  S.to[t].push({q: S.quarter, c: S.clock});
+  if (S.running) { S.running = false; wake(false); lastTs = null; }
+  addLog(S.teams[t].name + ': Timeout (' + (used + 1) + '/' + allow + ')' + (used + 1 > allow ? ' – oltre il numero consentito' : ''));
+  save(); render();
+}
+function benchFoul(t, k) { foulCtx = {t, pid: null}; doFoul(k); }
+function extrasHTML(t) {
+  const used = toUsed(S, t), allow = toAllow(S, S.quarter), c = benchCount(S, t, 'C1'), b = benchCount(S, t, 'B1');
+  const out = c >= 2 || c + b >= 3;
+  return '<div class="xtra"><button class="xto' + (used >= allow ? ' over' : '') + '" data-a="to" data-t="' + t + '">⏱ Timeout <b>' + used + '/' + allow + '</b></button>' +
+    '<button class="xb' + (out ? ' over' : '') + '" data-a="cb" data-t="' + t + '" data-k="C1">Coach C1 <b>' + c + '</b></button>' +
+    '<button class="xb' + (out ? ' over' : '') + '" data-a="cb" data-t="' + t + '" data-k="B1">Panchina B1 <b>' + b + '</b></button></div>';
+}
+function toSum(g, t) {
+  const l = toList(g, t); if (!l.length) return '';
+  const c = {}; l.forEach(x => { const h = halfOf(g, x.q); c[h] = (c[h] || 0) + 1; });
+  const nm = h => h === 'h1' ? '1° tempo' : h === 'h2' ? '2° tempo' : 'supplementare ' + h.slice(2).replace(/^\d+$/, q => (q - g.nq));
+  return '<div class="pct">Timeout: ' + l.length + ' (' + Object.keys(c).map(h => nm(h) + ' ' + c[h]).join(' · ') + ')</div>';
+}
 function stat(k) {
   if (!sel) { toast('Tocca prima un giocatore'); return; }
+  if (k === 'pf') { openFoul(sel.t, sel.pid); return; }
   if (/^[mx][23]$/.test(k) && askLoc) { openShot(k); return; }
   apply(k, sel.t, sel.pid, null);
 }
@@ -272,10 +359,16 @@ function apply(k, t, pid, loc) {
   save(); render();
 }
 function oppAction(t, k) {
+  if (k === 'pf') { openFoul(t, null); return; }
   snap();
   const T = S.teams[t], o = S.oppStats;
-  if (k === 'pf') { o.pf++; S.tf[t]++; addLog(T.name + ': Fallo'); }
-  else {
+  if (k[0] === 'd') {
+    const n = +k[1];
+    if (o['m' + n] < 1) { undoStack.pop(); toast('Nessun punto da togliere'); return; }
+    o['m' + n]--; S.score[t] -= n;
+    S.teams[1 - t].onCourt.forEach(id => S.stats[id].pm += n);
+    addLog(T.name + ': Correzione −' + n + '  [' + S.score[0] + '-' + S.score[1] + ']');
+  } else {
     const n = +k[1]; o[k]++; S.score[t] += n;
     S.teams[1 - t].onCourt.forEach(id => S.stats[id].pm -= n);
     addLog(T.name + ': ' + (n === 1 ? 'Tiro libero a segno' : 'Canestro da ' + n) + '  [' + S.score[0] + '-' + S.score[1] + ']');
@@ -402,7 +495,8 @@ function teamCol(t) {
     const o = S.oppStats;
     const ob = (cls, k, big, small) => '<button class="' + cls + '" data-a="oa" data-t="' + t + '" data-k="' + k + '"><span class="ob">' + big + '</span><span class="os">' + small + '</span></button>';
     return '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>' +
-      '<div class="grid2">' + ob('ok', 'm1', '+1', 'Tiro libero · ' + o.m1) + ob('ok', 'm2', '+2', 'Da 2 · ' + o.m2) + ob('ok', 'm3', '+3', 'Da 3 · ' + o.m3) + ob('ko', 'pf', 'Fallo', 'Falli · ' + o.pf) + '</div></div>';
+      '<div class="grid2">' + ob('ok', 'm1', '+1', 'Tiro libero · ' + o.m1) + ob('ok', 'm2', '+2', 'Da 2 · ' + o.m2) + ob('ok', 'm3', '+3', 'Da 3 · ' + o.m3) + ob('ko', 'pf', 'Fallo', 'Falli · ' + o.pf) +
+      '</div><div class="grid3m">' + ['1', '2', '3'].map(n => '<button class="ko sm" data-a="oa" data-t="' + t + '" data-k="d' + n + '"' + (o['m' + n] > 0 ? '' : ' disabled') + '>−' + n + '</button>').join('') + '</div>' + extrasHTML(t) + '</div>';
   }
   let h = '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>';
   T.onCourt.forEach(pid => {
@@ -411,7 +505,7 @@ function teamCol(t) {
     if (st.pf >= 5) cls.push('out'); else if (st.pf >= 4) cls.push('warn');
     h += '<button class="' + cls.join(' ') + '" data-a="sel" data-t="' + t + '" data-pid="' + pid + '"><span class="n">' + esc(p.num) + '</span><span class="nm">' + esc(p.name) + '</span><span class="ps">' + st.pts + ' pt · ' + (st.oreb + st.dreb) + ' rb · ' + st.ast + ' as · ' + st.pf + ' f</span></button>';
   });
-  return h + '</div>';
+  return h + extrasHTML(t) + '</div>';
 }
 function padHTML() {
   const p = sel ? findPlayer(S, sel.pid) : null, d = sel ? '' : ' disabled';
@@ -443,7 +537,7 @@ function oppBox(g, T, t) {
 function boxHTML(g) {
   let h = '';
   g.teams.forEach((T, t) => {
-    if (T.isOpp) { h += oppBox(g, T, t); return; }
+    if (T.isOpp) { h += oppBox(g, T, t) + foulSum(g, t) + toSum(g, t); return; }
     const tot = STAT0();
     let rows = '';
     T.players.forEach(p => {
@@ -453,7 +547,7 @@ function boxHTML(g) {
     });
     rows += '<tr class="tot"><td></td><td>Totale</td><td></td><td>' + tot.pts + '</td><td>' + tot.fgm + '/' + tot.fga + '</td><td>' + tot.tpm + '/' + tot.tpa + '</td><td>' + tot.ftm + '/' + tot.fta + '</td><td>' + tot.oreb + '</td><td>' + tot.dreb + '</td><td>' + (tot.oreb + tot.dreb) + '</td><td>' + tot.ast + '</td><td>' + tot.stl + '</td><td>' + tot.blk + '</td><td>' + tot.to + '</td><td>' + tot.pf + '</td><td></td></tr>';
     h += '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table><thead><tr>' + COLS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
-      '<div class="pct">TC ' + pct(tot.fgm, tot.fga) + ' · 3P ' + pct(tot.tpm, tot.tpa) + ' · TL ' + pct(tot.ftm, tot.fta) + '</div>';
+      '<div class="pct">TC ' + pct(tot.fgm, tot.fga) + ' · 3P ' + pct(tot.tpm, tot.tpa) + ' · TL ' + pct(tot.ftm, tot.fta) + '</div>' + foulSum(g, t) + toSum(g, t);
   });
   return h;
 }
@@ -602,6 +696,9 @@ const H = {
   newgame: startNewGame,
   stpick: b => pickStarter(b.dataset.id),
   stgo: launchGame,
+  to: b => doTimeout(+b.dataset.t),
+  cb: b => benchFoul(+b.dataset.t, b.dataset.k),
+  foul: b => doFoul(b.dataset.ft),
   color: b => { const c = getConv(); c.color = b.dataset.v; saveJSON(CKEY, c); render(); },
   rename: () => { const v = prompt('Nome della partita', S.name || ''); if (v === null) return; S.name = v.trim(); save(); render(); },
   oa: b => oppAction(+b.dataset.t, b.dataset.k),
