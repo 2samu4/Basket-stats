@@ -30,11 +30,10 @@ input,select,textarea{font:inherit;color:var(--tx);background:var(--input);borde
 textarea{min-height:230px;font-family:ui-monospace,Consolas,monospace}
 label{display:block;color:var(--mut);font-size:14px;margin:8px 0 4px}
 [hidden]{display:none!important}
-body{display:flex;align-items:flex-start}
-nav{display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;width:158px;flex:0 0 158px;z-index:5;background:var(--bar);border-right:1px solid var(--line);padding:10px 8px;overflow-y:auto}
-nav button{flex:0 0 auto;border:0;border-radius:12px;background:none;padding:14px 12px;font-weight:600;color:var(--mut);text-align:left;box-shadow:none}
-nav button.on{color:var(--acc);background:var(--sel);box-shadow:inset 4px 0 var(--acc)}
-main{padding:10px;max-width:1300px;margin:0 auto;flex:1;min-width:0}
+nav{display:flex;position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line);box-shadow:0 2px 10px #0002}
+nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 4px;font-weight:600;color:var(--mut);box-shadow:none}
+nav button.on{color:var(--acc);box-shadow:inset 0 -3px var(--acc)}
+main{padding:10px;max-width:1300px;margin:0 auto}
 h3{margin:4px 0 8px}
 .mut{color:var(--mut)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
@@ -54,7 +53,7 @@ button.stop{background:var(--ko);border-color:var(--ko);font-weight:700}
 /* board */
 .board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pad{grid-column:1/-1;order:3;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px}
-@media(min-width:1000px){.board{grid-template-columns:1fr 340px 1fr}.pad{grid-column:auto;order:0}}
+@media(min-width:900px){.board{grid-template-columns:1fr 340px 1fr}.pad{grid-column:auto;order:0}}
 .col{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:8px}
 .ch{display:flex;justify-content:space-between;align-items:center;font-weight:700;padding:2px 4px;gap:6px}
 .ch span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -155,8 +154,7 @@ button.go,button.stop{color:#fff}
 .card,.col,.pad,.sb,#modal .m{border-radius:18px}
 .sb{background:linear-gradient(180deg,var(--panel),var(--panel2))}
 nav button{font-size:15px;letter-spacing:.2px}
-nav button.th{margin-top:auto;font-size:20px;padding:10px 0;text-align:center}
-@media(max-width:760px){nav{width:74px;flex-basis:74px;padding:8px 4px}nav button{padding:14px 4px;font-size:13px;text-align:center}main{padding:8px}}
+nav button.th{flex:0 0 52px;font-size:19px;padding:10px 0}
 .sc{letter-spacing:-1px}
 .clk{border-radius:12px;background:var(--panel2);border:1px solid var(--line);padding:2px 14px}
 h3{font-size:18px}
