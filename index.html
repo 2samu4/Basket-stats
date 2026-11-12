@@ -120,6 +120,14 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .stp .sr .sp{background:#12391f;border-color:var(--ok)}
 .stp .sr .sm{background:#431616;border-color:#7f1d1d}
 .stp .sv{flex:1;text-align:center;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
+.pchips{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:4px}
+.pchip{padding:6px 12px;border-radius:999px;font-weight:700;font-size:14px;color:var(--mut)}
+.pchip.on{color:var(--acc);border-color:var(--acc);background:#2a2f45}
+.bn{display:flex;flex-wrap:wrap;gap:6px}
+.bn .fh{flex:1 0 100%;margin:4px 0 0}
+.bc{padding:6px 10px;font-size:14px;min-height:40px}
+.bc.sel{outline:3px solid var(--acc)}
+.endcard{border-color:var(--acc)}
 .fh{color:var(--mut);font-size:13px;margin:10px 0 4px}
 .fgrp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .fgrp button{min-height:54px;font-weight:800;font-size:18px}
@@ -131,6 +139,7 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 <body>
 <nav>
   <button data-a="view" data-v="game">Partita</button>
+  <button data-a="view" data-v="subs">Cambi</button>
   <button data-a="view" data-v="box">Box score</button>
   <button data-a="view" data-v="shots">Tiri</button>
   <button data-a="view" data-v="log">Cronaca</button>
@@ -138,6 +147,7 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 </nav>
 <main>
   <section id="v-game"></section>
+  <section id="v-subs" hidden></section>
   <section id="v-box" hidden></section>
   <section id="v-shots" hidden></section>
   <section id="v-log" hidden></section>
@@ -336,7 +346,7 @@ function toast(msg) {
   clearTimeout(toast.h); toast.h = setTimeout(() => t.style.display = 'none', 1800);
 }
 function openModal(html) { $('#modal-c').innerHTML = html; $('#modal').classList.add('on'); }
-function closeModal() { $('#modal').classList.remove('on'); pending = null; }
+function closeModal() { $('#modal').classList.remove('on'); pending = null; lineupCtx = null; }
 
 /* ---------- azioni ---------- */
 const NAMES = {m1:'Tiro libero a segno',x1:'Tiro libero sbagliato',m2:'Canestro da 2',x2:'Tiro da 2 sbagliato',
@@ -427,7 +437,7 @@ function endGame() {
     (early ? '\n\nIl tempo non è finito: la partita viene chiusa in anticipo.' : '') +
     '\n\nVerrà archiviata: dal Menu potrai rivederla, esportarla o riprenderla.';
   if (!confirm(msg)) return;
-  S.running = false; wake(false);
+  S.running = false; wake(false); endBanner = null;
   addLog(early ? 'Partita chiusa in anticipo' : 'Fine partita');
   S.ended = true; S.endedAt = new Date().toISOString();
   const g = S; archiveCurrent();
@@ -442,7 +452,7 @@ function resumeGame(id) {
   const hist = loadJSON(HKEY) || [], g = hist.find(x => String(x.id) === String(id)); if (!g) return;
   if (!confirm('Riprendere questa partita?')) return;
   saveJSON(HKEY, hist.filter(x => String(x.id) !== String(id)));
-  delete g.ended; delete g.endedAt; g.running = false;
+  delete g.ended; delete g.endedAt; g.running = false; migrate(g);
   S = g; sel = null; undoStack = []; view = 'game'; save(); render();
 }
 
@@ -533,50 +543,151 @@ function openShot(k) {
     const pd = pending; closeModal(); apply(pd.k, pd.t, pd.pid, loc);
   });
 }
-function openSub() {
-  if (!sel) { toast('Tocca prima il giocatore che esce'); return; }
-  const T = S.teams[sel.t], out = findPlayer(S, sel.pid);
-  const bench = T.players.filter(p => !T.onCourt.includes(p.id));
-  if (!bench.length) { toast('Nessuno in panchina'); return; }
-  openModal('<h3>Esce ' + esc(label(out)) + '</h3><div class="mut">Chi entra?</div><div class="bench">' +
-    bench.map(p => '<button data-a="subpick" data-pid="' + p.id + '">' + esc(label(p)) + ' <small class="mut">' + S.stats[p.id].pf + ' f</small></button>').join('') +
-    '</div><button data-a="closemodal">Annulla</button>');
-}
-function doSub(pid) {
-  snap();
-  const T = S.teams[sel.t], idx = T.onCourt.indexOf(sel.pid);
-  const out = findPlayer(S, sel.pid), inn = findPlayer(S, pid);
-  T.onCourt[idx] = pid;
-  addLog('Cambio ' + T.name + ': esce ' + label(out) + ', entra ' + label(inn));
-  sel = {t: sel.t, pid}; closeModal(); save(); render();
-}
 function undo() {
   if (!undoStack.length) { toast('Niente da annullare'); return; }
   const cur = S;
   S = JSON.parse(undoStack.pop());
   S.clock = cur.clock; S.quarter = cur.quarter; S.running = cur.running;
-  Object.keys(S.stats).forEach(id => { if (cur.stats[id]) S.stats[id].sec = cur.stats[id].sec; });
+  S.clocks = cur.clocks; S.maxq = cur.maxq; S.starts = cur.starts;      // la struttura dei periodi non si annulla
   save(); render(); toast('Annullato');
 }
 function toggleClock() {
-  if (S.clock <= 0) { toast('Tempo finito: usa "Periodo ▸" o modifica il tempo'); return; }
+  if (S.clock <= 0) { toast('Tempo a zero: tocca il tempo per modificarlo'); return; }
   S.running = !S.running; lastTs = null; wake(S.running); save(); render();
-}
-function nextPeriod() {
-  if (S.running) { S.running = false; wake(false); }
-  if (S.clock > 0 && !confirm('Il tempo non è finito. Passare al periodo successivo?')) { render(); return; }
-  if (S.quarter >= S.nq) {
-    if (S.score[0] !== S.score[1]) { toast('Partita finita: premi "Termina partita" per archiviarla'); return; }
-    if (!confirm('Pareggio. Iniziare un supplementare da 5 minuti?')) return;
-  }
-  S.quarter++; S.clock = S.quarter <= S.nq ? S.qlen : 300; S.tf = [0,0]; undoStack = [];
-  addLog('Inizio ' + periodName(S.quarter, S.nq)); save(); render();
 }
 function editClock() {
   const v = prompt('Imposta il tempo (mm:ss)', fmt(S.clock)); if (v === null) return;
   const m = v.trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/); if (!m) { toast('Formato non valido'); return; }
-  S.clock = (+m[1]) * 60 + (+(m[2] || 0)); save(); render();
+  S.clock = Math.min(periodLen(S, S.quarter), (+m[1]) * 60 + (+(m[2] || 0))); save(); render();
 }
+
+/* ---------- periodi: scelta, fine periodo, quintetto di inizio ---------- */
+function goPeriod(q) {
+  if (!S || q === S.quarter || q < 1 || q > S.maxq || !S.starts[q]) return;
+  if (S.running) { S.running = false; wake(false); lastTs = null; }
+  S.clocks[S.quarter] = S.clock;
+  S.quarter = q; S.clock = S.clocks[q] != null ? S.clocks[q] : periodLen(S, q);
+  undoStack = []; sel = null; endBanner = null; save(); render();
+}
+function periodEnded(silent) {
+  S.running = false; wake(false); lastTs = null;
+  S.clock = 0; S.clocks[S.quarter] = 0;
+  addLog('Fine ' + periodName(S.quarter, S.nq));
+  if (S.quarter === S.maxq) { endBanner = S.quarter; view = 'box'; }
+  save(); if (!silent) beep(); render();
+}
+function endPeriod() {
+  if (S.clock > 0 && !confirm('Il tempo non è finito (' + fmt(S.clock) + '). Chiudere comunque ' + periodName(S.quarter, S.nq) + '?')) return;
+  periodEnded(true);
+}
+function startNextPeriod() {
+  if (S.quarter < S.maxq) { goPeriod(S.quarter + 1); return; }
+  if (S.quarter >= S.nq && S.score[0] !== S.score[1]) { toast('Partita finita: premi "Termina partita"'); return; }
+  if (S.running) { S.running = false; wake(false); lastTs = null; }
+  const t = myTeam(S), T = S.teams[t], q = S.maxq + 1;
+  const pool = T.players.map(p => p.id), need = Math.min(5, pool.length);
+  const prev = lineupAt(S, S.maxq, t, 0).filter(id => pool.includes(id));
+  lineupCtx = {mode: 'next', q, t, pool, need, starters: need === pool.length ? pool.slice() : prev.slice(0, need)};
+  if (need === pool.length) { lineupGo(); return; }
+  openLineup();
+}
+function openLineup() {
+  const x = lineupCtx, n = x.starters.length;
+  openModal('<h3>Quintetto iniziale – ' + periodName(x.q, S.nq) + '</h3><div class="mut">Tocca i ' + x.need + ' giocatori che iniziano · <b>' + n + '/' + x.need + '</b></div><div class="bench">' +
+    x.pool.map(id => '<button class="' + (x.starters.includes(id) ? 'go' : '') + '" data-a="lpick" data-id="' + id + '">' + esc(label(findPlayer(S, id))) + '</button>').join('') +
+    '</div><div class="row"><button class="go" data-a="lgo"' + (n === x.need ? '' : ' disabled') + '>' + (x.mode === 'next' ? 'Avvia ' + periodName(x.q, S.nq) : 'Salva quintetto') + '</button><button data-a="closemodal">Annulla</button></div>');
+}
+function lineupPick(id) {
+  const x = lineupCtx; if (!x) return;
+  if (x.starters.includes(id)) x.starters = x.starters.filter(i => i !== id);
+  else if (x.starters.length >= x.need) { toast('Hai già scelto ' + x.need + ' giocatori: togline uno'); return; }
+  else x.starters.push(id);
+  openLineup();
+}
+function lineupGo() {
+  const x = lineupCtx; if (!x || x.starters.length !== x.need) return;
+  const mk = () => S.teams.map((T, i) => i === x.t ? x.starters.slice() : []);
+  if (x.mode === 'edit') {
+    const old = S.starts[x.q];
+    S.starts[x.q] = mk();
+    const err = validateSubs(S, x.q, x.t);
+    if (err) { S.starts[x.q] = old; toast('Non posso: ' + err); return; }
+    closeModal(); save(); render(); toast('Quintetto aggiornato'); return;
+  }
+  S.clocks[S.quarter] = S.clock;
+  S.maxq = x.q; S.quarter = x.q; S.clock = S.clocks[x.q] = periodLen(S, x.q);
+  S.starts[x.q] = mk();
+  S.running = false; undoStack = []; sel = null; endBanner = null; view = 'game';
+  addLog('Inizio ' + periodName(x.q, S.nq));
+  closeModal(); save(); render();
+}
+
+/* ---------- scheda Cambi (minuto di ingresso = tempo rimasto sul tabellone) ---------- */
+const clockOf = q => q === S.quarter ? S.clock : (S.clocks && S.clocks[q] != null ? S.clocks[q] : periodLen(S, q));
+function resetSubForm() {
+  const c = Math.ceil(clockOf(subQ));
+  subForm = {m: Math.floor(c / 60), s: c % 60, out: null, inn: null};
+}
+function initSubs() { subQ = S.quarter; resetSubForm(); }
+const subTime = () => Math.max(0, Math.min(periodLen(S, subQ), (+subForm.m || 0) * 60 + (+subForm.s || 0)));
+function renderSubs() {
+  if (subQ == null || subQ > S.maxq || !subForm) initSubs();
+  const t = myTeam(S), T = S.teams[t], q = subQ, L = periodLen(S, q), c = subTime();
+  const on = lineupAt(S, q, t, c);
+  const off = T.players.filter(p => !on.includes(p.id));
+  if (subForm.out && !on.includes(subForm.out)) subForm.out = null;
+  if (subForm.inn && on.includes(subForm.inn)) subForm.inn = null;
+  const nm = id => { const p = findPlayer(S, id); return p ? esc(label(p)) : '?'; };
+  let chips = ''; for (let i = 1; i <= S.maxq; i++) if (S.starts[i]) chips += '<button class="pchip' + (i === q ? ' on' : '') + '" data-a="subq" data-q="' + i + '">' + periodName(i, S.nq) + '</button>';
+  let mins = ''; for (let m = Math.floor(L / 60); m >= 0; m--) mins += '<option value="' + m + '"' + (m === Math.floor(c / 60) ? ' selected' : '') + '>' + m + '</option>';
+  const subs = (S.subs || []).filter(s => s.t === t && s.q === q).sort(bySubTime);
+  const starters = ((S.starts[q] && S.starts[q][t]) || []).map(nm).join(' · ');
+  const future = q === S.quarter && c < Math.floor(S.clock);
+  const pbtn = (id, kind, cur) => '<button class="' + (cur === id ? 'go' : '') + '" data-a="' + kind + '" data-id="' + id + '">' + nm(id) + ' <small class="mut">' + S.stats[id].pf + ' f</small></button>';
+  $('#v-subs').innerHTML =
+    '<div class="pchips" style="justify-content:flex-start;margin-bottom:10px">' + chips + '</div>' +
+    '<div class="card"><h3>Quintetto iniziale · ' + periodName(q, S.nq) + '</h3><div>' + (starters || '<span class="mut">–</span>') + '</div>' +
+    '<div class="row"><button data-a="editstart">Modifica quintetto iniziale</button></div></div>' +
+    '<div class="card"><h3>Nuovo cambio · ' + periodName(q, S.nq) + '</h3>' +
+    '<label>Minuto di ingresso — tempo rimasto sul tabellone</label>' +
+    '<div class="row" style="flex-wrap:nowrap"><select id="sub-m" style="flex:0 0 90px">' + mins + '</select><b>:</b><input id="sub-s" type="number" min="0" max="59" inputmode="numeric" value="' + (c % 60) + '" style="flex:0 0 90px"><button data-a="subnow" style="flex:1">Tempo attuale (' + fmt(clockOf(q)) + ')</button></div>' +
+    (future ? '<div class="mut" style="font-size:13px">Il minuto è successivo al tempo attuale: il cambio avrà effetto quando il cronometro arriva a ' + fmt(c) + '.</div>' : '') +
+    '<div class="fh">Esce (in campo a ' + fmt(c) + ')</div><div class="bench">' + on.map(id => pbtn(id, 'subout', subForm.out)).join('') + '</div>' +
+    '<div class="fh">Entra (panchina)</div><div class="bench">' + (off.length ? off.map(p => pbtn(p.id, 'subin', subForm.inn)).join('') : '<span class="mut">Nessuno in panchina.</span>') + '</div>' +
+    '<div class="row"><button class="go" data-a="subadd"' + (subForm.out && subForm.inn ? '' : ' disabled') + '>Registra cambio</button></div></div>' +
+    '<div class="card"><h3>Cambi di ' + periodName(q, S.nq) + '</h3>' + (subs.length ? subs.map(s =>
+      '<div class="hi"><div><b style="color:var(--acc);font-variant-numeric:tabular-nums">' + fmt(s.c) + '</b> &nbsp;↓ ' + nm(s.out) + ' &nbsp;↑ ' + nm(s.in) + '</div><div class="b"><button data-a="subdel" data-seq="' + s.seq + '">✕</button></div></div>').join('') : '<span class="mut">Nessun cambio registrato.</span>') + '</div>';
+}
+function addSub() {
+  const f = subForm, q = subQ, t = myTeam(S), T = S.teams[t];
+  if (!f || !f.out || !f.inn) { toast('Scegli chi esce e chi entra'); return; }
+  const c = subTime();
+  snap();
+  S.seq = (S.seq || 0) + 1;
+  S.subs = S.subs || [];
+  S.subs.push({t, q, c, out: f.out, in: f.inn, seq: S.seq});
+  const err = validateSubs(S, q, t);
+  if (err) { S.subs.pop(); S.seq--; undoStack.pop(); toast(err); return; }
+  addLog('Cambio ' + T.name + ': esce ' + label(findPlayer(S, f.out)) + ', entra ' + label(findPlayer(S, f.in || f.inn)) + ' (' + periodName(q, S.nq) + ' ' + fmt(c) + ')', q, c);
+  subForm.out = null; subForm.inn = null;
+  save(); render(); toast('Cambio registrato');
+}
+function delSub(seq) {
+  const i = S.subs.findIndex(x => x.seq === seq); if (i < 0) return;
+  const sb = S.subs[i];
+  snap();
+  S.subs.splice(i, 1);
+  const err = validateSubs(S, sb.q, sb.t);
+  if (err) { S.subs.splice(i, 0, sb); undoStack.pop(); toast('Non posso eliminarlo: ' + err + ' Elimina prima i cambi successivi.'); return; }
+  addLog('Cambio eliminato (' + periodName(sb.q, S.nq) + ' ' + fmt(sb.c) + ')', sb.q, sb.c);
+  save(); render();
+}
+function editStart() {
+  const t = myTeam(S), pool = S.teams[t].players.map(p => p.id), need = Math.min(5, pool.length);
+  lineupCtx = {mode: 'edit', q: subQ, t, pool, need, starters: ((S.starts[subQ] && S.starts[subQ][t]) || []).slice(0, need)};
+  openLineup();
+}
+
 let wl = null;
 async function wake(on) {
   try {
@@ -598,12 +709,9 @@ setInterval(() => {
   if (lastTs == null) { lastTs = now; return; }
   const d = Math.min((now - lastTs) / 1000, S.clock); lastTs = now;
   S.clock -= d;
-  S.teams.forEach(t => t.onCourt.forEach(id => S.stats[id].sec += d));
-  if (S.clock <= 0.001) {
-    S.clock = 0; S.running = false; wake(false); addLog('Fine ' + periodName(S.quarter, S.nq));
-    save(); beep(); render(); return;
-  }
+  if (S.clock <= 0.001) { periodEnded(false); return; }
   const c = $('#clock'); if (c) c.textContent = fmt(S.clock);
+  if (syncOnCourt(S) && view === 'game') render();            // un cambio programmato è entrato in vigore
   if (view === 'box' && now - lastBoxRender > 1000) { lastBoxRender = now; renderBox(); }
   if (now - lastSave > 5000) save();
 }, 200);
@@ -632,7 +740,7 @@ function render() {
   if (!S && view !== 'menu') view = 'menu';
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('main>section').forEach(s => s.hidden = s.id !== 'v-' + view);
-  ({game: renderGame, box: renderBox, shots: renderShots, log: renderLog, menu: renderMenu})[view]();
+  ({game: renderGame, subs: renderSubs, box: renderBox, shots: renderShots, log: renderLog, menu: renderMenu})[view]();
 }
 
 function teamCol(t) {
@@ -651,6 +759,8 @@ function teamCol(t) {
     if (st.pf >= 5) cls.push('out'); else if (st.pf >= 4) cls.push('warn');
     h += '<button class="' + cls.join(' ') + '" data-a="sel" data-t="' + t + '" data-pid="' + pid + '"><span class="n">' + esc(p.num) + '</span><span class="nm">' + esc(p.name) + '</span><span class="ps">' + st.pts + ' pt · ' + (st.oreb + st.dreb) + ' rb · ' + st.ast + ' as · ' + st.pf + ' f</span></button>';
   });
+  const bench = T.players.filter(p => !T.onCourt.includes(p.id));
+  if (bench.length) h += '<div class="bn"><div class="fh">Panchina</div>' + bench.map(p => '<button class="bc' + (sel && sel.pid === p.id ? ' sel' : '') + '" data-a="sel" data-t="' + t + '" data-pid="' + p.id + '">' + esc(p.num) + ' ' + esc(p.name) + '</button>').join('') + '</div>';
   return h + extrasHTML(t) + '</div>';
 }
 function padHTML() {
@@ -662,17 +772,17 @@ function padHTML() {
     '</div><div class="stepgrid">' + [['oreb', 'Rimb. OFF'], ['dreb', 'Rimb. DIF'], ['ast', 'Assist'], ['stl', 'Recupero'], ['blk', 'Stoppata'], ['to', 'Perse']].map(([k, n]) => {
       const v = sel ? S.stats[sel.pid][k] : null;
       return '<div class="stp"><div class="sl">' + n + '</div><div class="sr"><button class="sm" data-a="sd" data-k="' + k + '"' + (v ? '' : ' disabled') + ' aria-label="Togli uno: ' + n + '">−</button><span class="sv">' + (v === null ? '–' : v) + '</span><button class="sp" data-a="s" data-k="' + k + '"' + d + ' aria-label="Aggiungi uno: ' + n + '">+</button></div></div>';
-    }).join('') + '</div><div class="grid3" style="margin-top:8px">' +
+    }).join('') + '</div><div class="grid3" style="margin-top:8px;grid-template-columns:1fr 1fr">' +
     b('', 'pf', 'Fallo') +
-    '<button class="ut" data-a="sub"' + d + '>Cambio</button>' +
     '<button class="ut" data-a="undo">↶ Annulla</button></div></div>';
 }
 function renderGame() {
-  const per = periodName(S.quarter, S.nq);
+  let pchips = ''; for (let i = 1; i <= S.maxq; i++) if (S.starts[i]) pchips += '<button class="pchip' + (i === S.quarter ? ' on' : '') + '" data-a="goper" data-q="' + i + '">' + periodName(i, S.nq) + '</button>';
   $('#v-game').innerHTML =
     (S.name ? '<div class="gname">' + esc(S.name) + '</div>' : '') + '<div class="sb"><div class="sbt"><div class="tn">' + chip(0) + esc(S.teams[0].name) + '</div><div class="sc">' + S.score[0] + '</div></div>' +
-    '<div class="sbm"><div class="per">' + per + '</div><div class="clk" id="clock" data-a="editclock">' + fmt(S.clock) + '</div>' +
-    '<div class="sbb"><button class="' + (S.running ? 'stop' : 'go') + '" data-a="toggle">' + (S.running ? '⏸ Stop' : '▶ Avvia') + '</button><button data-a="nextper">Periodo ▸</button></div></div>' +
+    '<div class="sbm"><div class="pchips">' + pchips + '</div><div class="clk" id="clock" data-a="editclock">' + fmt(S.clock) + '</div>' +
+    '<div class="sbb"><button class="' + (S.running ? 'stop' : 'go') + '" data-a="toggle">' + (S.running ? '⏸ Stop' : '▶ Avvia') + '</button>' +
+    (S.quarter < S.maxq ? '<button data-a="nextper">' + periodName(S.quarter + 1, S.nq) + ' ▸</button>' : '<button data-a="endper">Fine periodo</button>') + '</div></div>' +
     '<div class="sbt"><div class="tn">' + chip(1) + esc(S.teams[1].name) + '</div><div class="sc">' + S.score[1] + '</div></div></div>' +
     '<div class="board">' + teamCol(0) + padHTML() + teamCol(1) + '</div>' +
     '<div class="row endrow"><button class="endbtn" data-a="endgame">Termina partita</button></div>';
@@ -683,8 +793,21 @@ function oppBox(g, T, t) {
   const o = g.oppStats || {m1:0,m2:0,m3:0,pf:0};
   return '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table class="o"><thead><tr><th>Punti</th><th>Da 3</th><th>Da 2</th><th>Liberi</th><th>Falli</th></tr></thead><tbody><tr><td><b>' + g.score[t] + '</b></td><td>' + o.m3 + '</td><td>' + o.m2 + '</td><td>' + o.m1 + '</td><td>' + o.pf + '</td></tr></tbody></table></div>';
 }
+function parziali(g) {
+  if (!g.pts || !g.pts.length) return '';
+  const q = {}; g.pts.forEach(e => { (q[e.q] = q[e.q] || [0, 0])[e.t] += e.n; });
+  return '<div class="pct">Parziali: ' + Object.keys(q).map(Number).sort((a, b) => a - b).map(k => periodName(k, g.nq) + ' ' + q[k][0] + '–' + q[k][1]).join(' · ') + '</div>';
+}
+function bannerHTML() {
+  if (endBanner == null) return '';
+  const q = endBanner, last = q >= S.nq, tie = S.score[0] === S.score[1];
+  const btn = last && !tie ? '<button class="go" data-a="endgame">Termina partita</button>'
+    : '<button class="go" data-a="nextper">Inizia ' + periodName(q + 1, S.nq) + ' – scegli il quintetto</button>';
+  return '<div class="card endcard"><h3>Fine ' + periodName(q, S.nq) + '</h3><div style="font-size:22px;font-weight:700;margin-bottom:8px">' + esc(S.teams[0].name) + ' ' + S.score[0] + ' – ' + S.score[1] + ' ' + esc(S.teams[1].name) + '</div>' +
+    '<div class="row">' + btn + '<button data-a="backgame">Torna alla partita</button></div></div>';
+}
 function boxHTML(g) {
-  let h = '';
+  let h = parziali(g);
   g.teams.forEach((T, t) => {
     if (T.isOpp) { h += oppBox(g, T, t) + foulSum(g, t) + toSum(g, t); return; }
     const tot = STAT0();
@@ -701,7 +824,8 @@ function boxHTML(g) {
   return h;
 }
 function renderBox() {
-  $('#v-box').innerHTML = boxHTML(S) +
+  recompute(S);
+  $('#v-box').innerHTML = bannerHTML() + boxHTML(S) +
     '<div class="row"><button data-a="csv">Esporta CSV (Excel)</button><button data-a="json">Esporta partita (JSON)</button></div>';
 }
 function renderShots() {
@@ -832,14 +956,24 @@ const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.tea
 
 /* ---------- eventi ---------- */
 const H = {
-  view: b => { view = b.dataset.v; render(); },
+  view: b => { view = b.dataset.v; if (view !== 'box') endBanner = null; if (view === 'subs' && S) initSubs(); render(); },
   sel: b => { const pid = b.dataset.pid; sel = (sel && sel.pid === pid) ? null : {t: +b.dataset.t, pid}; render(); },
   s: b => stat(b.dataset.k),
-  sub: openSub,
-  subpick: b => doSub(b.dataset.pid),
+  goper: b => goPeriod(+b.dataset.q),
+  endper: endPeriod,
+  backgame: () => { endBanner = null; view = 'game'; render(); },
+  lpick: b => lineupPick(b.dataset.id),
+  lgo: lineupGo,
+  subq: b => { subQ = +b.dataset.q; resetSubForm(); render(); },
+  subout: b => { subForm.out = subForm.out === b.dataset.id ? null : b.dataset.id; render(); },
+  subin: b => { subForm.inn = subForm.inn === b.dataset.id ? null : b.dataset.id; render(); },
+  subnow: () => { const c = Math.ceil(clockOf(subQ)); subForm.m = Math.floor(c / 60); subForm.s = c % 60; render(); },
+  subadd: addSub,
+  subdel: b => delSub(+b.dataset.seq),
+  editstart: editStart,
   undo,
   toggle: toggleClock,
-  nextper: nextPeriod,
+  nextper: startNextPeriod,
   editclock: editClock,
   closemodal: closeModal,
   shotnoloc: () => { const pd = pending; closeModal(); if (pd) apply(pd.k, pd.t, pd.pid, null); },
@@ -880,6 +1014,10 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const id = e.target.id;
   if (e.target.dataset && e.target.dataset.cv) { convChange(e.target); return; }
+  if (id === 'sub-m' || id === 'sub-s') {
+    subForm.m = +$('#sub-m').value; subForm.s = +$('#sub-s').value || 0;
+    const c = subTime(); subForm.m = Math.floor(c / 60); subForm.s = c % 60; render(); return;
+  }
   if (id === 'cside') { const c = getConv(); c.side = +e.target.value; saveJSON(CKEY, c); return; }
   if (id === 'impteam') { if (e.target.files[0]) importTeam(e.target.files[0]); return; }
   if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveJSON(RKEY, r); return; }
@@ -893,7 +1031,7 @@ document.addEventListener('change', e => {
         const g = JSON.parse(rd.result);
         if (!g.teams || !g.stats || !g.score) throw 0;
         if (S && !confirm('Importare la partita? Quella corrente verrà archiviata.')) return;
-        archiveCurrent(); g.running = false; S = g; sel = null; undoStack = []; view = 'game'; save(); render(); toast('Partita importata');
+        archiveCurrent(); g.running = false; migrate(g); S = g; sel = null; undoStack = []; view = 'game'; save(); render(); toast('Partita importata');
       } catch (err) { toast('File non valido'); }
     };
     rd.readAsText(e.target.files[0]);
@@ -914,6 +1052,7 @@ window.addEventListener('beforeunload', save);
 document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else if (S && S.running) wake(true); });
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
+if (S) { migrate(S); recompute(S); }
 render();
 </script>
 </body>
