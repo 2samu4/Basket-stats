@@ -13,13 +13,13 @@
 <style>
 :root{--bg:#0e0e0f;--panel:#19191b;--panel2:#252527;--line:#343437;--tx:#ececee;--mut:#9b9ba1;--acc:#f59e0b;--ok:#16a34a;--ko:#dc2626;
 --bar:#121213;--input:#111112;--sel:#2f2b24;--okbg:#15291b;--kobg:#2f1a1a;--koline:#5e2626;--outbg:#2f1a1a;--info:#202124;--infoline:#3d3f45;
---court:#1d1d1f;--courtline:#8a8a90;--bonus:#ff6b6b;--shadow:0 1px 2px #0006,0 6px 18px #0004;--overlay:#000b;--toast:#000d;--toasttx:#fff}
+--court:#1d1d1f;--courtline:#8a8a90;--bonus:#ff6b6b;--shadow:0 1px 2px #0006,0 6px 18px #0004;--overlay:#000b;--toast:#000d;--toasttx:#fff;--jw:#f1f5f9}
 :root[data-theme=light]{color-scheme:light;--bg:#eef1f6;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--tx:#0f1a2e;--mut:#5a6987;--acc:#c96a00;--ok:#15803d;--ko:#dc2626;
 --bar:#fff;--input:#fff;--sel:#fff1d6;--okbg:#dcf5e3;--kobg:#fde4e4;--koline:#f0a3a3;--outbg:#fde4e4;--info:#e7eefc;--infoline:#b3c6ee;
---court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff}
+--court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff;--jw:#94a3b8}
 @media(prefers-color-scheme:light){:root:not([data-theme]){color-scheme:light;--bg:#eef1f6;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--tx:#0f1a2e;--mut:#5a6987;--acc:#c96a00;--ok:#15803d;--ko:#dc2626;
 --bar:#fff;--input:#fff;--sel:#fff1d6;--okbg:#dcf5e3;--kobg:#fde4e4;--koline:#f0a3a3;--outbg:#fde4e4;--info:#e7eefc;--infoline:#b3c6ee;
---court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff}}
+--court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff;--jw:#94a3b8}}
 :root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:manipulation}
@@ -103,6 +103,7 @@ summary{cursor:pointer;padding:4px 0}
 .grid2 .ok{background:var(--okbg);border-color:var(--ok)}
 .grid2 .ko{background:var(--kobg);border-color:var(--koline)}
 .grid3m{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.grid3m .ko{background:var(--kobg);border-color:var(--koline)}
 .grid3m .sm{min-height:48px;font-size:20px;font-weight:800}
 .ob{font-size:34px;font-weight:800;line-height:1}
 .os{font-size:12px;color:var(--mut)}
@@ -110,8 +111,8 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .chip{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:6px;vertical-align:-2px;border:2px solid #94a3b8}
 .chip.jw{background:#f8fafc}
 .chip.jb{background:#2563eb;border-color:#60a5fa}
-.col.jw{border-top:4px solid #f8fafc}
-.col.jb{border-top:4px solid #3b82f6}
+.col.jw{border:3px solid var(--jw)}
+.col.jb{border:3px solid #3b82f6}
 .gname{text-align:center;color:var(--acc);font-weight:700;margin:0 0 6px}
 .cbtn{min-height:52px;font-weight:700}
 .cbtn.on{outline:3px solid var(--acc);background:var(--sel)}
@@ -161,6 +162,9 @@ h3{font-size:18px}
 th{text-transform:uppercase;letter-spacing:.4px;font-size:12px}
 tr:nth-child(even) td{background:color-mix(in srgb,var(--panel2) 45%,transparent)}
 tr.tot td{background:var(--panel2)}
+tr.pr{cursor:pointer}
+tr.pr:active td{background:var(--sel)}
+tr.pr.sel td{background:var(--sel);color:var(--acc);font-weight:700}
 .pc{border-radius:14px}
 .pc .n{font-size:28px}
 .pc.sel{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 35%,transparent)}
@@ -179,7 +183,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
   <button data-a="view" data-v="game">Partita</button>
   <button data-a="view" data-v="subs">Cambi</button>
   <button data-a="view" data-v="box">Box score</button>
-  <button data-a="view" data-v="shots">Tiri</button>
   <button data-a="view" data-v="log">Cronaca</button>
   <button class="th" data-a="theme" id="thbtn" title="Tema chiaro / scuro">◐</button>
 </nav>
@@ -187,7 +190,6 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
   <section id="v-game"></section>
   <section id="v-subs" hidden></section>
   <section id="v-box" hidden></section>
-  <section id="v-shots" hidden></section>
   <section id="v-log" hidden></section>
   <section id="v-menu" hidden></section>
 </main>
@@ -929,7 +931,7 @@ function render() {
   if (!S && view !== 'menu') view = 'menu';
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view));
   document.querySelectorAll('main>section').forEach(s => s.hidden = s.id !== 'v-' + view);
-  ({game: renderGame, subs: renderSubs, box: renderBox, shots: renderShots, log: renderLog, menu: renderMenu})[view]();
+  ({game: renderGame, subs: renderSubs, box: renderBox, log: renderLog, menu: renderMenu})[view]();
 }
 
 function teamCol(t) {
@@ -1004,7 +1006,7 @@ function boxHTML(g) {
     T.players.forEach(p => {
       const s = g.stats[p.id]; Object.keys(tot).forEach(k => tot[k] += s[k]);
       const on = T.onCourt.includes(p.id);
-      rows += '<tr><td>' + esc(p.num) + '</td><td>' + esc(p.name) + (on && g === S ? ' •' : '') + '</td><td>' + fmtMin(s.sec) + '</td><td><b>' + s.pts + '</b></td><td>' + s.fgm + '/' + s.fga + '</td><td>' + s.tpm + '/' + s.tpa + '</td><td>' + s.ftm + '/' + s.fta + '</td><td>' + s.oreb + '</td><td>' + s.dreb + '</td><td>' + (s.oreb + s.dreb) + '</td><td>' + s.ast + '</td><td>' + s.stl + '</td><td>' + s.blk + '</td><td>' + s.to + '</td><td>' + s.pf + '</td><td>' + (s.pm > 0 ? '+' : '') + s.pm + '</td></tr>';
+      rows += '<tr' + (g === S ? ' class="pr' + (shotFilter.pid === p.id ? ' sel' : '') + '" data-a="shotpid" data-id="' + p.id + '"' : '') + '><td>' + esc(p.num) + '</td><td>' + esc(p.name) + (on && g === S ? ' •' : '') + '</td><td>' + fmtMin(s.sec) + '</td><td><b>' + s.pts + '</b></td><td>' + s.fgm + '/' + s.fga + '</td><td>' + s.tpm + '/' + s.tpa + '</td><td>' + s.ftm + '/' + s.fta + '</td><td>' + s.oreb + '</td><td>' + s.dreb + '</td><td>' + (s.oreb + s.dreb) + '</td><td>' + s.ast + '</td><td>' + s.stl + '</td><td>' + s.blk + '</td><td>' + s.to + '</td><td>' + s.pf + '</td><td>' + (s.pm > 0 ? '+' : '') + s.pm + '</td></tr>';
     });
     rows += '<tr class="tot"><td></td><td>Totale</td><td></td><td>' + tot.pts + '</td><td>' + tot.fgm + '/' + tot.fga + '</td><td>' + tot.tpm + '/' + tot.tpa + '</td><td>' + tot.ftm + '/' + tot.fta + '</td><td>' + tot.oreb + '</td><td>' + tot.dreb + '</td><td>' + (tot.oreb + tot.dreb) + '</td><td>' + tot.ast + '</td><td>' + tot.stl + '</td><td>' + tot.blk + '</td><td>' + tot.to + '</td><td>' + tot.pf + '</td><td></td></tr>';
     h += '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table><thead><tr>' + COLS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
@@ -1014,18 +1016,20 @@ function boxHTML(g) {
 }
 function renderBox() {
   recompute(S);
+  const ae = document.activeElement;
+  if (ae && ae.tagName === 'SELECT' && $('#v-box').contains(ae)) return;   // non chiudere il menu a tendina mentre è aperto
   $('#v-box').innerHTML = bannerHTML() + boxHTML(S) +
-    '<div class="row"><button data-a="csv">Esporta CSV (Excel)</button><button data-a="json">Esporta partita (JSON)</button></div>';
+    '<div class="row"><button data-a="csv">Esporta CSV (Excel)</button><button data-a="json">Esporta partita (JSON)</button></div>' +
+    '<div class="h2"><span>Mappa dei tiri</span></div>' + shotsHTML();
 }
-function renderShots() {
-  const opts = (arr, cur) => arr.map(([v, t]) => '<option value="' + v + '"' + (String(cur) === String(v) ? ' selected' : '') + '>' + esc(t) + '</option>').join('');
-  const teamOpts = [['all', 'Tutte']].concat(S.teams.map((T, i) => [i, T.name]).filter(([i]) => !S.teams[i].isOpp));
-  let players = [['all', 'Tutti i giocatori']];
-  S.teams.forEach((T, t) => { if (shotFilter.t === 'all' || +shotFilter.t === t) T.players.forEach(p => players.push([p.id, label(p) + (shotFilter.t === 'all' ? ' · ' + T.name : '')])); });
-  const list = S.shots.filter(s => (shotFilter.t === 'all' || s.t === +shotFilter.t) && (shotFilter.pid === 'all' || s.pid === shotFilter.pid));
+function shotsHTML() {
+  const pid = shotFilter.pid;
+  const pl = pid !== 'all' ? findPlayer(S, pid) : null;
+  const list = S.shots.filter(s => pid === 'all' || s.pid === pid);
   const made = list.filter(s => s.made).length;
-  $('#v-shots').innerHTML =
-    '<div class="row"><select id="sf-t">' + opts(teamOpts, shotFilter.t) + '</select><select id="sf-p">' + opts(players, shotFilter.pid) + '</select></div>' +
+  return '<div id="shotmap" class="row" style="align-items:center"><div style="flex:1"><b>' + (pl ? esc(label(pl)) : 'Tutta la squadra') + '</b>' +
+    (pl ? '' : '<div class="mut" style="font-size:13px">Tocca un giocatore nella tabella per vedere solo i suoi tiri</div>') + '</div>' +
+    (pl ? '<button data-a="shotpid" data-id="all" style="flex:0 0 auto">Mostra tutti</button>' : '') + '</div>' +
     courtSVG(list.map(dot).join('')) +
     '<div class="pct" style="text-align:center">Tiri con posizione: ' + made + '/' + list.length + ' (' + pct(made, list.length) + ') · <span style="color:#22c55e">●</span> a segno · <span style="color:#ef4444">✕</span> sbagliato</div>';
 }
@@ -1158,6 +1162,12 @@ function applyTheme() {
 }
 function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
 const H = {
+  shotpid: b => {
+    const id = b.dataset.id;
+    shotFilter = {t: 'all', pid: (id === 'all' || shotFilter.pid === id) ? 'all' : id};
+    render();
+    if (shotFilter.pid !== 'all') { const m = document.getElementById('shotmap'); if (m) m.scrollIntoView({behavior: 'smooth', block: 'start'}); }
+  },
   theme: () => setTheme({auto: 'light', light: 'dark', dark: 'auto'}[getTheme()]),
   settheme: b => setTheme(b.dataset.v),
   view: b => { view = b.dataset.v; if (view !== 'box') endBanner = null; if (view === 'subs' && S) initSubs(); render(); },

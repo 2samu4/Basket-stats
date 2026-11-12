@@ -6,7 +6,7 @@ App per le statistiche di una partita di basket, per entrambe le squadre. Funzio
 - Quintetto in campo per la tua squadra, cambi, cronometro per periodo (modificabile toccando il tempo), falli di squadra e bonus
 - Canestri da 1/2/3, tiri sbagliati, rimbalzi (off/dif), assist, recuperi, stoppate, perse, falli
 - Minuti giocati e plus/minus calcolati in automatico
-- Mappa dei tiri: dopo un tiro tocchi il campo dove è partito (si può disattivare dal Menu)
+- Mappa dei tiri: dopo un tiro tocchi il campo dove è partito (si può disattivare dal Menu); la si rivede in fondo alla scheda Box score: tocca un giocatore nella tabella per vedere solo i suoi tiri (tocca di nuovo o "Mostra tutti" per tornare alla squadra intera)
 - Box score completo, cronaca, "Annulla" illimitato
 - Salvataggio automatico sul dispositivo, archivio partite, export CSV (Excel) e JSON
 
