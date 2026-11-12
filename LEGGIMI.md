@@ -10,7 +10,7 @@ App per le statistiche di una partita di basket, per entrambe le squadre. Funzio
 - Box score completo, cronaca, "Annulla" illimitato
 - Salvataggio automatico sul dispositivo, archivio partite, export CSV (Excel) e JSON
 
-- **Tema chiaro e scuro**: il pulsante ◐ in alto a destra cambia tra automatico (segue il dispositivo), chiaro e scuro; la scelta si trova anche in Menu → Aspetto
+- **Tema chiaro e scuro**: il pulsante ◐ in fondo al menu a sinistra cambia tra automatico (segue il dispositivo), chiaro e scuro; la scelta si trova anche in Menu → Aspetto
 
 ## Avvio sul PC
 Nella cartella dell'app apri un terminale ed esegui:

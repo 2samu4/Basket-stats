@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="theme-color" content="#0a101d">
+<meta name="theme-color" content="#121213">
 <script>try{var t=localStorage.getItem("bbstats_theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
@@ -11,9 +11,9 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Basket Stats</title>
 <style>
-:root{--bg:#0b1220;--panel:#111a2e;--panel2:#18243f;--line:#27365a;--tx:#e8eefc;--mut:#8ea0c4;--acc:#f59e0b;--ok:#16a34a;--ko:#dc2626;
---bar:#0a101d;--input:#0b1426;--sel:#2a2f45;--okbg:#12391f;--kobg:#431616;--koline:#7f1d1d;--outbg:#3a1620;--info:#16253f;--infoline:#2f4b7c;
---court:#1b2740;--courtline:#94a3b8;--bonus:#ff6b6b;--shadow:0 1px 2px #0005,0 6px 18px #0003;--overlay:#000b;--toast:#000d;--toasttx:#fff}
+:root{--bg:#0e0e0f;--panel:#19191b;--panel2:#252527;--line:#343437;--tx:#ececee;--mut:#9b9ba1;--acc:#f59e0b;--ok:#16a34a;--ko:#dc2626;
+--bar:#121213;--input:#111112;--sel:#2f2b24;--okbg:#15291b;--kobg:#2f1a1a;--koline:#5e2626;--outbg:#2f1a1a;--info:#202124;--infoline:#3d3f45;
+--court:#1d1d1f;--courtline:#8a8a90;--bonus:#ff6b6b;--shadow:0 1px 2px #0006,0 6px 18px #0004;--overlay:#000b;--toast:#000d;--toasttx:#fff}
 :root[data-theme=light]{color-scheme:light;--bg:#eef1f6;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--tx:#0f1a2e;--mut:#5a6987;--acc:#c96a00;--ok:#15803d;--ko:#dc2626;
 --bar:#fff;--input:#fff;--sel:#fff1d6;--okbg:#dcf5e3;--kobg:#fde4e4;--koline:#f0a3a3;--outbg:#fde4e4;--info:#e7eefc;--infoline:#b3c6ee;
 --court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff}
@@ -30,10 +30,11 @@ input,select,textarea{font:inherit;color:var(--tx);background:var(--input);borde
 textarea{min-height:230px;font-family:ui-monospace,Consolas,monospace}
 label{display:block;color:var(--mut);font-size:14px;margin:8px 0 4px}
 [hidden]{display:none!important}
-nav{display:flex;position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line)}
-nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 4px;font-weight:600;color:var(--mut)}
-nav button.on{color:var(--acc);box-shadow:inset 0 -3px var(--acc)}
-main{padding:10px;max-width:1300px;margin:0 auto}
+body{display:flex;align-items:flex-start}
+nav{display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh;width:158px;flex:0 0 158px;z-index:5;background:var(--bar);border-right:1px solid var(--line);padding:10px 8px;overflow-y:auto}
+nav button{flex:0 0 auto;border:0;border-radius:12px;background:none;padding:14px 12px;font-weight:600;color:var(--mut);text-align:left;box-shadow:none}
+nav button.on{color:var(--acc);background:var(--sel);box-shadow:inset 4px 0 var(--acc)}
+main{padding:10px;max-width:1300px;margin:0 auto;flex:1;min-width:0}
 h3{margin:4px 0 8px}
 .mut{color:var(--mut)}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:8px 0}
@@ -53,7 +54,7 @@ button.stop{background:var(--ko);border-color:var(--ko);font-weight:700}
 /* board */
 .board{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .pad{grid-column:1/-1;order:3;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px}
-@media(min-width:900px){.board{grid-template-columns:1fr 340px 1fr}.pad{grid-column:auto;order:0}}
+@media(min-width:1000px){.board{grid-template-columns:1fr 340px 1fr}.pad{grid-column:auto;order:0}}
 .col{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:8px}
 .ch{display:flex;justify-content:space-between;align-items:center;font-weight:700;padding:2px 4px;gap:6px}
 .ch span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -153,9 +154,9 @@ button.go,button.stop{color:#fff}
 .card,.col,.pad,.sb{box-shadow:var(--shadow)}
 .card,.col,.pad,.sb,#modal .m{border-radius:18px}
 .sb{background:linear-gradient(180deg,var(--panel),var(--panel2))}
-nav{box-shadow:0 2px 10px #0002}
 nav button{font-size:15px;letter-spacing:.2px}
-nav button.th{flex:0 0 52px;font-size:19px;padding:10px 0}
+nav button.th{margin-top:auto;font-size:20px;padding:10px 0;text-align:center}
+@media(max-width:760px){nav{width:74px;flex-basis:74px;padding:8px 4px}nav button{padding:14px 4px;font-size:13px;text-align:center}main{padding:8px}}
 .sc{letter-spacing:-1px}
 .clk{border-radius:12px;background:var(--panel2);border:1px solid var(--line);padding:2px 14px}
 h3{font-size:18px}
@@ -1154,7 +1155,7 @@ function applyTheme() {
   const t = getTheme(), r = document.documentElement;
   if (t === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
   const dark = t === 'dark' || (t === 'auto' && !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches));
-  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#0a101d' : '#ffffff';
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#121213' : '#ffffff';
   const b = document.getElementById('thbtn'); if (b) b.textContent = t === 'light' ? '☀' : (t === 'dark' ? '☾' : '◐');
 }
 function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
