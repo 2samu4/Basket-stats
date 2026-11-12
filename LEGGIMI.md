@@ -26,6 +26,11 @@ Per installarla e usarla offline serve un indirizzo HTTPS. Il modo più semplice
 
 In alternativa, sulla stessa rete Wi-Fi puoi aprire http://IP-DEL-PC:8000 dal tablet: funziona, ma senza installazione né uso offline.
 
+## Account e sincronizzazione (facoltativa)
+Con un account (email e password) la squadra e le partite archiviate si ritrovano su ogni dispositivo in cui accedi. Serve un progetto Firebase gratuito: la guida passo per passo è in **GUIDA_ACCOUNT.md**. Finché non è configurato l'app funziona normalmente, senza account. Dati e file di squadra/partita via file restano disponibili come alternativa.
+
+Cartella dell'app: `index.html`, `sw.js`, `manifest.json`, le icone, `firebase-config.js` (da compilare) e la cartella `vendor` (da caricare insieme agli altri file).
+
 ## Dati
 Per portare la tua squadra su un altro dispositivo: Menu → La mia squadra → "Esporta squadra (file)", poi sull'altro dispositivo "Importa squadra da file".
 

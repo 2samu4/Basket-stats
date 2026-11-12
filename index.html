@@ -156,6 +156,10 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 <div id="modal"><div class="m" id="modal-c"></div></div>
 <div id="toast"></div>
 
+<script src="firebase-config.js"></script>
+<script src="vendor/firebase-app-compat.js"></script>
+<script src="vendor/firebase-auth-compat.js"></script>
+<script src="vendor/firebase-firestore-compat.js"></script>
 <script>
 'use strict';
 /* ---------- utilità ---------- */
@@ -174,6 +178,7 @@ const RKEY = 'bbstats_roster', CKEY = 'bbstats_conv';
 /* ---------- la mia squadra (anagrafica) e convocati ---------- */
 const getRoster = () => loadJSON(RKEY) || {name: 'La mia squadra', players: []};
 const getConv = () => { const c = loadJSON(CKEY) || {}; return {sel: c.sel || [], starters: c.starters || [], side: c.side || 0, color: c.color === 'blue' ? 'blue' : 'white'}; };
+function saveRoster(r) { r.updatedAt = Date.now(); saveJSON(RKEY, r); scheduleSync(); }
 const byNum = (a, b) => {
   const x = a.num === '' ? 1e9 : +a.num, y = b.num === '' ? 1e9 : +b.num;
   return x - y || a.name.localeCompare(b.name);
@@ -183,7 +188,7 @@ function addMyPlayer() {
   if (!n && !m) { toast('Inserisci numero e cognome'); return; }
   const r = getRoster();
   r.players.push({id: 'p' + Date.now(), num: n, name: m || 'Giocatore ' + n});
-  r.players.sort(byNum); saveJSON(RKEY, r); menuOpen.roster = true; render();
+  r.players.sort(byNum); saveRoster(r); menuOpen.roster = true; render();
   setTimeout(() => { const f = $('#rp-n'); if (f) f.focus(); }, 0);
 }
 function editMyPlayer(id) {
@@ -191,12 +196,12 @@ function editMyPlayer(id) {
   const v = prompt('Numero e cognome (es. 7 Rossi)', (p.num !== '' ? p.num + ' ' : '') + p.name); if (v === null) return;
   const m = v.trim().match(/^(\d{1,3})\s*[-.:)]?\s*(.*)$/);
   if (m) { p.num = m[1]; p.name = m[2] || 'Giocatore ' + m[1]; } else if (v.trim()) { p.num = ''; p.name = v.trim(); } else return;
-  r.players.sort(byNum); saveJSON(RKEY, r); menuOpen.roster = true; render();
+  r.players.sort(byNum); saveRoster(r); menuOpen.roster = true; render();
 }
 function delMyPlayer(id) {
   const r = getRoster(), p = r.players.find(x => x.id === id); if (!p) return;
   if (!confirm('Eliminare ' + label(p) + ' dalla squadra?')) return;
-  r.players = r.players.filter(x => x.id !== id); saveJSON(RKEY, r);
+  r.players = r.players.filter(x => x.id !== id); saveRoster(r);
   const c = getConv(); c.sel = c.sel.filter(x => x !== id); c.starters = c.starters.filter(x => x !== id); saveJSON(CKEY, c);
   menuOpen.roster = true; render();
 }
@@ -305,6 +310,152 @@ function migrate(g) {
   const q = g.quarter || 1;
   g.maxq = q; g.clocks = {}; g.clocks[q] = g.clock; g.subs = []; g.pts = []; g.seq = 0;
   g.starts = {}; g.starts[q] = g.teams.map(T => T.isOpp ? [] : (T.onCourt || []).slice());
+}
+
+
+/* ---------- account e sincronizzazione (Firebase, facoltativa) ---------- */
+const DKEY = 'bbstats_deleted', UKEY = 'bbstats_cloud_uid', SKEY = 'bbstats_lastsync';
+const cloud = {state: 'off', user: null, auth: null, db: null, status: '', syncing: false, again: false, error: ''};
+let accDraft = '', syncTimer = null;
+const cfgOK = () => { const c = window.FIREBASE_CONFIG; return !!(c && c.apiKey && c.projectId && !/^INCOLLA/i.test(c.apiKey) && !/^INCOLLA/i.test(c.projectId)); };
+const withTimeout = (p, ms) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), ms || 20000))]);
+const lastSync = () => { const t = +localStorage.getItem(SKEY); return t ? new Date(t).toLocaleString('it-IT') : null; };
+function setStatus(msg) {
+  if (msg !== undefined) cloud.status = msg;
+  const el = $('#syncst');
+  if (el) el.textContent = cloud.status || (lastSync() ? 'Ultima sincronizzazione: ' + lastSync() : 'Non ancora sincronizzato');
+}
+const AUTHERR = {
+  'auth/invalid-email': 'Email non valida.', 'auth/user-not-found': 'Account non trovato.', 'auth/wrong-password': 'Password errata.',
+  'auth/invalid-credential': 'Email o password errate.', 'auth/email-already-in-use': 'Esiste già un account con questa email.',
+  'auth/weak-password': 'Password troppo corta (minimo 6 caratteri).', 'auth/network-request-failed': 'Nessuna connessione a internet.',
+  'auth/too-many-requests': 'Troppi tentativi: riprova tra qualche minuto.', 'auth/missing-password': 'Inserisci la password.',
+  'auth/unauthorized-domain': 'Dominio non autorizzato: aggiungilo in Firebase → Authentication → Impostazioni.'
+};
+function cloudInit() {
+  if (!window.firebase) { cloud.state = 'nosdk'; return; }
+  if (!cfgOK()) { cloud.state = 'noconfig'; return; }
+  try {
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    cloud.auth = firebase.auth(); cloud.db = firebase.firestore();
+    try { cloud.db.settings({ignoreUndefinedProperties: true, merge: true}); } catch (e) {}
+    cloud.state = 'ready';
+    cloud.auth.onAuthStateChanged(u => {
+      cloud.user = u || null; cloud.status = '';
+      if (u) syncNow();
+      if (view === 'menu') render();
+    });
+  } catch (e) { cloud.state = 'error'; cloud.error = e.message || String(e); }
+}
+function scheduleSync() {
+  if (!cloud.user) return;
+  clearTimeout(syncTimer); syncTimer = setTimeout(() => syncNow(), 1500);
+}
+async function accAuth(mode) {
+  const email = ($('#acc-email').value || '').trim(), pw = $('#acc-pw').value || '';
+  if (!email || !pw) { toast('Inserisci email e password'); return; }
+  setStatus('Accesso in corso…');
+  try {
+    if (mode === 'new') await cloud.auth.createUserWithEmailAndPassword(email, pw);
+    else await cloud.auth.signInWithEmailAndPassword(email, pw);
+    accDraft = '';
+  } catch (e) { setStatus(''); toast(AUTHERR[e.code] || ('Errore: ' + (e.message || e.code))); }
+}
+async function accReset() {
+  const email = ($('#acc-email').value || '').trim();
+  if (!email) { toast('Scrivi prima la tua email'); return; }
+  try { await cloud.auth.sendPasswordResetEmail(email); toast('Ti abbiamo scritto per reimpostare la password'); }
+  catch (e) { toast(AUTHERR[e.code] || ('Errore: ' + (e.message || e.code))); }
+}
+async function accOut() {
+  if (!confirm('Uscire dall\'account? I dati restano su questo dispositivo.')) return;
+  try { await cloud.auth.signOut(); } catch (e) {}
+}
+async function syncNow(manual) {
+  if (cloud.state !== 'ready' || !cloud.user) return;
+  if (cloud.syncing) { cloud.again = true; return; }
+  if (navigator.onLine === false) { setStatus('Offline: sincronizzo appena torni online.'); return; }
+  const uid = cloud.user.uid, prev = localStorage.getItem(UKEY);
+  if (prev && prev !== uid && (getRoster().players.length || (loadJSON(HKEY) || []).length) &&
+      !confirm('Questo dispositivo contiene i dati di un altro account. Vuoi unirli a quelli di questo account?')) { try { await cloud.auth.signOut(); } catch (e) {} return; }
+  cloud.syncing = true; setStatus('Sincronizzazione…');
+  try {
+    await syncData(uid);
+    try { localStorage.setItem(UKEY, uid); localStorage.setItem(SKEY, String(Date.now())); } catch (e) {}
+    setStatus('');
+    if (manual) toast('Sincronizzato');
+  } catch (e) {
+    const m = e && e.code === 'permission-denied' ? 'permessi mancanti (controlla le regole di Firestore).'
+      : e && e.message === 'timeout' ? 'connessione lenta, riprovo più tardi.' : ((e && (e.message || e.code)) || 'errore sconosciuto');
+    setStatus('Sincronizzazione non riuscita: ' + m);
+  } finally {
+    cloud.syncing = false;
+    if (cloud.again) { cloud.again = false; scheduleSync(); }
+  }
+  const ae = document.activeElement;
+  if (view === 'menu' && !(ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName))) render();
+}
+/* squadra e partite archiviate: vince la versione più recente (updatedAt); la partita in corso non si sincronizza */
+async function syncData(uid) {
+  const base = cloud.db.collection('users').doc(uid), rRef = base.collection('meta').doc('roster'), gRef = base.collection('games');
+  const [rd, gs] = await withTimeout(Promise.all([rRef.get(), gRef.get()]), 20000);
+  const jobs = [];
+  /* ---- squadra ---- */
+  const remote = rd.exists ? rd.data() : null, local = getRoster();
+  const lt = local.updatedAt || 0, rt = remote ? (remote.updatedAt || 0) : 0;
+  const pushRoster = () => { const t = lt || Date.now(); if (!lt) { local.updatedAt = t; saveJSON(RKEY, local); }
+    jobs.push(() => rRef.set({name: local.name || '', players: local.players || [], updatedAt: t})); };
+  if (remote && rt > lt) {
+    if (local.players.length && lt === 0 && !confirm('Sul cloud c\'è già una squadra ("' + (remote.name || '') + '", ' + (remote.players || []).length + ' giocatori). Usarla al posto di quella di questo dispositivo?')) {
+      local.updatedAt = Date.now(); saveJSON(RKEY, local); jobs.push(() => rRef.set({name: local.name || '', players: local.players, updatedAt: local.updatedAt}));
+    } else {
+      const players = (remote.players || []).map(x => ({id: x.id, num: String(x.num ?? ''), name: String(x.name || '')}));
+      saveJSON(RKEY, {name: remote.name || 'La mia squadra', players, updatedAt: rt});
+      const c = getConv(), ids = players.map(x => x.id); c.sel = c.sel.filter(id => ids.includes(id)); c.starters = c.starters.filter(id => ids.includes(id)); saveJSON(CKEY, c);
+    }
+  } else if ((local.players.length || lt > 0) && (!remote || lt > rt)) pushRoster();
+  /* ---- partite archiviate ---- */
+  const remoteG = {}; gs.forEach(d => { remoteG[d.id] = d.data(); });
+  const tomb = loadJSON(DKEY) || {};
+  const upd = g => g.updatedAt || Date.parse(g.endedAt || g.date) || 0;
+  const byId = {}; (loadJSON(HKEY) || []).forEach(g => { byId[String(g.id)] = g; });
+  Object.keys(tomb).forEach(id => { delete byId[id]; });
+  Object.keys(remoteG).forEach(id => {
+    const r = remoteG[id], t = r.updatedAt || 0, l = byId[id];
+    if (S && String(S.id) === id) return;                         // partita ripresa: resta locale
+    if (tomb[id] && tomb[id] >= t) return;                         // cancellata qui: da propagare
+    if (r.deleted) { if (l && t >= upd(l)) delete byId[id]; return; }
+    if (!l || t > upd(l)) { try { const g = JSON.parse(r.data); g.updatedAt = t; byId[id] = g; delete tomb[id]; } catch (e) {} }
+  });
+  Object.keys(byId).forEach(id => {
+    const g = byId[id], t = upd(g), r = remoteG[id];
+    if (!g.updatedAt) g.updatedAt = t;
+    if (!r || t > (r.updatedAt || 0)) jobs.push(() => gRef.doc(id).set({data: JSON.stringify(g), updatedAt: t, name: g.name || ''}));
+  });
+  const pushedTomb = [];
+  Object.keys(tomb).forEach(id => {
+    const r = remoteG[id];
+    if (!r || (!r.deleted && (r.updatedAt || 0) <= tomb[id])) jobs.push(() => gRef.doc(id).set({deleted: true, updatedAt: tomb[id]}));
+    pushedTomb.push(id);
+  });
+  saveJSON(HKEY, Object.keys(byId).map(id => byId[id]).sort((a, b) => upd(b) - upd(a)).slice(0, 40));
+  if (jobs.length) await withTimeout(Promise.all(jobs.map(f => f())), 30000);
+  if (pushedTomb.length) { const t2 = loadJSON(DKEY) || {}; pushedTomb.forEach(id => { delete t2[id]; }); saveJSON(DKEY, t2); }
+}
+function accountHTML() {
+  const open = menuOpen.account !== undefined ? menuOpen.account : !cloud.user;
+  let body;
+  if (cloud.state === 'nosdk') body = '<p class="mut">Sincronizzazione non disponibile: mancano i file della cartella "vendor".</p>';
+  else if (cloud.state === 'noconfig') body = '<p class="mut">La sincronizzazione non è ancora attiva: manca la configurazione. Segui la guida GUIDA_ACCOUNT.md e inserisci i dati del tuo progetto in firebase-config.js.</p>';
+  else if (cloud.state === 'error') body = '<p class="mut">Errore di configurazione: ' + esc(cloud.error) + '</p>';
+  else if (cloud.user) body = '<div>Connesso come <b>' + esc(cloud.user.email || '') + '</b></div><div class="mut" id="syncst" style="margin:6px 0"></div>' +
+    '<div class="row"><button class="go" data-a="syncnow">Sincronizza ora</button><button data-a="accout">Esci</button></div>' +
+    '<div class="mut" style="font-size:13px">Squadra e partite archiviate si sincronizzano da sole. La partita in corso resta sul dispositivo finché non la termini.</div>';
+  else body = '<label>Email</label><input id="acc-email" type="email" autocomplete="email" value="' + esc(accDraft) + '">' +
+    '<label>Password</label><input id="acc-pw" type="password" autocomplete="current-password">' +
+    '<div class="row"><button class="go" data-a="accin">Accedi</button><button data-a="accnew">Crea account</button></div>' +
+    '<div class="row"><button data-a="accreset">Password dimenticata</button></div><div class="mut" id="syncst" style="font-size:13px"></div>';
+  return '<details class="card" data-k="account"' + (open ? ' open' : '') + '><summary><b>Account e sincronizzazione</b> <span class="mut">' + (cloud.user ? '(connesso)' : '') + '</span></summary>' + body + '</details>';
 }
 
 /* ---------- creazione partita ---------- */
@@ -476,7 +627,7 @@ function importTeam(file) {
       const cur = getRoster();
       if (cur.players.length && !confirm('Sostituire la squadra attuale (' + cur.players.length + ' giocatori) con quella del file (' + players.length + ' giocatori)?')) return;
       players.sort(byNum);
-      saveJSON(RKEY, {name: String(d.name || cur.name || 'La mia squadra'), players});
+      saveRoster({name: String(d.name || cur.name || 'La mia squadra'), players});
       const c = getConv(); c.sel = []; c.starters = []; saveJSON(CKEY, c);
       menuOpen.roster = true; render(); toast('Squadra importata: ' + players.length + ' giocatori');
     } catch (e) { toast('File squadra non valido'); }
@@ -856,6 +1007,7 @@ function renderMenu() {
       '<div class="row"><button class="stop" data-a="endgame">Termina partita</button><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
       '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div></div>';
   }
+  h += accountHTML();
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
   const ngOpen = menuOpen.newgame !== undefined ? menuOpen.newgame : !S;
   h += '<details class="card" data-k="roster"' + (roOpen ? ' open' : '') + '><summary><b>La mia squadra</b> <span class="mut">(' + R.players.length + ' giocatori)</span></summary>' +
@@ -880,14 +1032,14 @@ function renderMenu() {
     '<div class="hi"><div>' + (g.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(g.name) + '</div>' : '') + esc(g.teams[0].name) + ' <b>' + g.score[0] + '–' + g.score[1] + '</b> ' + esc(g.teams[1].name) + '<div class="mut" style="font-size:13px">' + new Date(g.date).toLocaleString('it-IT') + '</div></div><div class="b"><button data-a="hres" data-id="' + g.id + '">Riprendi</button><button data-a="hview" data-id="' + g.id + '">Vedi</button><button data-a="hcsv" data-id="' + g.id + '">CSV</button><button data-a="hdel" data-id="' + g.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessuna.</span>') + '</div>';
   h += '<div class="card"><h3>Importa partita</h3><div class="mut" style="margin-bottom:8px">Per spostare una partita da un dispositivo all\'altro: esporta il JSON e importalo qui.</div><input type="file" id="imp" accept=".json,application/json"></div>';
   $('#v-menu').innerHTML = h;
-  updateConvUI(C);
+  updateConvUI(C); setStatus();
 }
 
 /* ---------- archivio, export, import ---------- */
 function archiveCurrent() {
   if (!S) return;
   const hist = loadJSON(HKEY) || [];
-  S.running = false; recompute(S); hist.unshift(S); saveJSON(HKEY, hist.slice(0, 40));
+  S.running = false; recompute(S); S.updatedAt = Date.now(); hist.unshift(S); saveJSON(HKEY, hist.slice(0, 40)); scheduleSync();
 }
 let startCtx = null;
 function startNewGame() {
@@ -984,6 +1136,11 @@ const H = {
   endgame: endGame,
   hres: b => resumeGame(b.dataset.id),
   expteam: exportTeam,
+  accin: () => accAuth('in'),
+  accnew: () => accAuth('new'),
+  accreset: accReset,
+  accout: accOut,
+  syncnow: () => syncNow(true),
   to: b => doTimeout(+b.dataset.t),
   cb: b => benchFoul(+b.dataset.t, b.dataset.k),
   foul: b => doFoul(b.dataset.ft),
@@ -1005,7 +1162,7 @@ const H = {
   },
   hview: b => { const g = (loadJSON(HKEY) || []).find(x => String(x.id) === b.dataset.id); if (g) openModal('<h3>' + esc(g.teams[0].name) + ' ' + g.score[0] + ' – ' + g.score[1] + ' ' + esc(g.teams[1].name) + '</h3>' + boxHTML(g) + '<button data-a="closemodal">Chiudi</button>'); },
   hcsv: b => { const g = (loadJSON(HKEY) || []).find(x => String(x.id) === b.dataset.id); if (g) download(gname(g) + '.csv', toCSV(g), 'text/csv;charset=utf-8'); },
-  hdel: b => { if (!confirm('Eliminare questa partita archiviata?')) return; saveJSON(HKEY, (loadJSON(HKEY) || []).filter(x => String(x.id) !== b.dataset.id)); render(); }
+  hdel: b => { if (!confirm('Eliminare questa partita archiviata?')) return; const tomb = loadJSON(DKEY) || {}; tomb[b.dataset.id] = Date.now(); saveJSON(DKEY, tomb); scheduleSync(); saveJSON(HKEY, (loadJSON(HKEY) || []).filter(x => String(x.id) !== b.dataset.id)); render(); }
 };
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-a]');
@@ -1020,7 +1177,7 @@ document.addEventListener('change', e => {
   }
   if (id === 'cside') { const c = getConv(); c.side = +e.target.value; saveJSON(CKEY, c); return; }
   if (id === 'impteam') { if (e.target.files[0]) importTeam(e.target.files[0]); return; }
-  if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveJSON(RKEY, r); return; }
+  if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveRoster(r); return; }
   if (id === 'sf-t') { shotFilter = {t: e.target.value, pid: 'all'}; render(); }
   else if (id === 'sf-p') { shotFilter.pid = e.target.value; render(); }
   else if (id === 'askloc') { askLoc = e.target.checked; localStorage.setItem(LKEY, askLoc ? '1' : '0'); }
@@ -1039,20 +1196,24 @@ document.addEventListener('change', e => {
 });
 document.addEventListener('input', e => {
   if (e.target.id === 'gname') gdraft = e.target.value;
+  if (e.target.id === 'acc-email') accDraft = e.target.value;
   if (e.target.id === 'tn-opp') {
     const s = loadJSON(TKEY) || {};
     s.opp = {name: $('#tn-opp').value}; saveJSON(TKEY, s);
   }
 });
 document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && e.target.id === 'acc-pw') { e.preventDefault(); accAuth('in'); return; }
   if (e.key === 'Enter' && (e.target.id === 'rp-n' || e.target.id === 'rp-m')) { e.preventDefault(); addMyPlayer(); return; }
   if (e.code === 'Space' && S && view === 'game' && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); toggleClock(); }
 });
 window.addEventListener('beforeunload', save);
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else if (S && S.running) wake(true); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); else { if (S && S.running) wake(true); scheduleSync(); } });
+window.addEventListener('online', () => scheduleSync());
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 if (S) { migrate(S); recompute(S); }
+cloudInit();
 render();
 </script>
 </body>
