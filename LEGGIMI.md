@@ -10,6 +10,8 @@ App per le statistiche di una partita di basket, per entrambe le squadre. Funzio
 - Box score completo, cronaca, "Annulla" illimitato
 - Salvataggio automatico sul dispositivo, archivio partite, export CSV (Excel) e JSON
 
+- **Tema chiaro e scuro**: il pulsante ◐ in alto a destra cambia tra automatico (segue il dispositivo), chiaro e scuro; la scelta si trova anche in Menu → Aspetto
+
 ## Avvio sul PC
 Nella cartella dell'app apri un terminale ed esegui:
 
@@ -47,4 +49,5 @@ I dati restano nel browser del dispositivo in cui li inserisci. Per spostare una
 5. Premendo "Fallo" (tuo o avversario) si apre la finestra con i codici del referto: P, P1-P3 (personale con 1-3 liberi), U1-U3 (antisportivo), D1-D3 (squalificante), T1 (tecnico giocatore), C1 (tecnico allenatore), B1 (tecnico panchina), F (rissa). T1 conta al giocatore ma non alla squadra; C1 e B1 non contano né al giocatore né alla squadra
 6. In fondo a ogni squadra ci sono tre pulsanti: Timeout (conta quelli usati nel tempo, es. 1/2 nel primo tempo, x/3 nel secondo, 1 per supplementare; ferma il cronometro), Coach C1 e Panchina B1 (falli tecnici, non contano né al giocatore né alla squadra)
 7. Per chiudere la partita, anche prima della fine: "Termina partita" (in fondo alla schermata Partita o nel Menu). Viene archiviata; dal Menu puoi rivederla, esportarla in CSV o riprenderla con "Riprendi"
-8. Errore? "Annulla"
+8. **Chiusura dell'app**: se chiudi l'app (o la scheda del browser) la partita in corso termina da sola e viene archiviata; alla riapertura la trovi nel Menu → Partite archiviate (da lì puoi anche riprenderla con "Riprendi"). Un semplice ricaricamento della pagina non la chiude
+9. Errore? "Annulla"

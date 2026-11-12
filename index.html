@@ -4,23 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="theme-color" content="#0a101d">
+<script>try{var t=localStorage.getItem("bbstats_theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <title>Basket Stats</title>
 <style>
-:root{--bg:#0b1220;--panel:#111a2e;--panel2:#18243f;--line:#27365a;--tx:#e8eefc;--mut:#8ea0c4;--acc:#f59e0b;--ok:#16a34a;--ko:#dc2626}
+:root{--bg:#0b1220;--panel:#111a2e;--panel2:#18243f;--line:#27365a;--tx:#e8eefc;--mut:#8ea0c4;--acc:#f59e0b;--ok:#16a34a;--ko:#dc2626;
+--bar:#0a101d;--input:#0b1426;--sel:#2a2f45;--okbg:#12391f;--kobg:#431616;--koline:#7f1d1d;--outbg:#3a1620;--info:#16253f;--infoline:#2f4b7c;
+--court:#1b2740;--courtline:#94a3b8;--bonus:#ff6b6b;--shadow:0 1px 2px #0005,0 6px 18px #0003;--overlay:#000b;--toast:#000d;--toasttx:#fff}
+:root[data-theme=light]{color-scheme:light;--bg:#eef1f6;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--tx:#0f1a2e;--mut:#5a6987;--acc:#c96a00;--ok:#15803d;--ko:#dc2626;
+--bar:#fff;--input:#fff;--sel:#fff1d6;--okbg:#dcf5e3;--kobg:#fde4e4;--koline:#f0a3a3;--outbg:#fde4e4;--info:#e7eefc;--infoline:#b3c6ee;
+--court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff}
+@media(prefers-color-scheme:light){:root:not([data-theme]){color-scheme:light;--bg:#eef1f6;--panel:#fff;--panel2:#f3f5f9;--line:#d6dce8;--tx:#0f1a2e;--mut:#5a6987;--acc:#c96a00;--ok:#15803d;--ko:#dc2626;
+--bar:#fff;--input:#fff;--sel:#fff1d6;--okbg:#dcf5e3;--kobg:#fde4e4;--koline:#f0a3a3;--outbg:#fde4e4;--info:#e7eefc;--infoline:#b3c6ee;
+--court:#e9eef7;--courtline:#7b8aa8;--bonus:#dc2626;--shadow:0 1px 2px #0f1a2e14,0 6px 18px #0f1a2e12;--overlay:#0f1a2e88;--toast:#1e293bee;--toasttx:#fff}}
+:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;touch-action:manipulation}
 button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;user-select:none;-webkit-user-select:none}
 button:active{filter:brightness(1.35)}
 button:disabled{opacity:.35}
-input,select,textarea{font:inherit;color:var(--tx);background:#0b1426;border:1px solid var(--line);border-radius:10px;padding:10px;width:100%}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--input);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%}
 textarea{min-height:230px;font-family:ui-monospace,Consolas,monospace}
 label{display:block;color:var(--mut);font-size:14px;margin:8px 0 4px}
 [hidden]{display:none!important}
-nav{display:flex;position:sticky;top:0;z-index:5;background:#0a101d;border-bottom:1px solid var(--line)}
+nav{display:flex;position:sticky;top:0;z-index:5;background:var(--bar);border-bottom:1px solid var(--line)}
 nav button{flex:1;border:0;border-radius:0;background:none;padding:14px 4px;font-weight:600;color:var(--mut)}
 nav button.on{color:var(--acc);box-shadow:inset 0 -3px var(--acc)}
 main{padding:10px;max-width:1300px;margin:0 auto}
@@ -48,20 +58,20 @@ button.stop{background:var(--ko);border-color:var(--ko);font-weight:700}
 .ch{display:flex;justify-content:space-between;align-items:center;font-weight:700;padding:2px 4px;gap:6px}
 .ch span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .tf{font-size:13px;color:var(--mut);white-space:nowrap}
-.tf.bonus{color:#ff6b6b;font-weight:700}
+.tf.bonus{color:var(--bonus);font-weight:700}
 .pc{display:grid;grid-template-columns:44px 1fr;grid-template-rows:auto auto;text-align:left;gap:0 8px;min-height:64px;align-items:center}
 .pc .n{grid-row:1/3;font-size:26px;font-weight:800;text-align:center;color:var(--acc)}
 .pc .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pc .ps{font-size:12px;color:var(--mut)}
-.pc.sel{outline:3px solid var(--acc);background:#2a2f45}
+.pc.sel{outline:3px solid var(--acc);background:var(--sel)}
 .pc.warn{border-color:#f59e0b}
-.pc.out{border-color:var(--ko);background:#3a1620}
+.pc.out{border-color:var(--ko);background:var(--outbg)}
 .who{text-align:center;font-weight:700;padding:6px 4px 10px;min-height:36px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .grid3 button{min-height:58px;font-weight:700;padding:6px}
-.grid3 .ok{background:#12391f;border-color:var(--ok)}
-.grid3 .ko{background:#431616;border-color:#7f1d1d}
-.grid3 .ut{background:#16253f}
+.grid3 .ok{background:var(--okbg);border-color:var(--ok)}
+.grid3 .ko{background:var(--kobg);border-color:var(--koline)}
+.grid3 .ut{background:var(--info)}
 /* tables */
 .tw{overflow-x:auto;margin-bottom:6px}
 table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums;font-size:15px}
@@ -77,12 +87,12 @@ tr.tot td{font-weight:800;border-top:2px solid var(--line)}
 .lg{padding:8px 4px;border-bottom:1px solid var(--line)}
 .lg b{color:var(--acc);font-variant-numeric:tabular-nums;margin-right:6px}
 /* modal / toast */
-#modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;z-index:20;padding:12px}
+#modal{position:fixed;inset:0;background:var(--overlay);display:none;align-items:center;justify-content:center;z-index:20;padding:12px}
 #modal.on{display:flex}
 #modal .m{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px;max-width:780px;width:100%;max-height:92vh;overflow:auto}
 .bench{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:10px 0}
 .bench button{min-height:56px}
-#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#000d;border:1px solid var(--line);padding:10px 16px;border-radius:999px;z-index:30;display:none}
+#toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--toast);color:var(--toasttx);border:1px solid var(--line);padding:10px 16px;border-radius:999px;z-index:30;display:none}
 .chk{display:flex;align-items:center;gap:8px;color:var(--tx);margin:0}
 .chk input{width:auto}
 .hi{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);flex-wrap:wrap}
@@ -90,8 +100,8 @@ tr.tot td{font-weight:800;border-top:2px solid var(--line)}
 summary{cursor:pointer;padding:4px 0}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex:1}
 .grid2 button{min-height:96px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:6px}
-.grid2 .ok{background:#12391f;border-color:var(--ok)}
-.grid2 .ko{background:#431616;border-color:#7f1d1d}
+.grid2 .ok{background:var(--okbg);border-color:var(--ok)}
+.grid2 .ko{background:var(--kobg);border-color:var(--koline)}
 .grid3m{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .grid3m .sm{min-height:48px;font-size:20px;font-weight:800}
 .ob{font-size:34px;font-weight:800;line-height:1}
@@ -104,25 +114,25 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .col.jb{border-top:4px solid #3b82f6}
 .gname{text-align:center;color:var(--acc);font-weight:700;margin:0 0 6px}
 .cbtn{min-height:52px;font-weight:700}
-.cbtn.on{outline:3px solid var(--acc);background:#2a2f45}
+.cbtn.on{outline:3px solid var(--acc);background:var(--sel)}
 .xtra{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:2px}
 .xtra button{padding:8px 4px;font-size:13px;min-height:52px;line-height:1.2}
 .xtra b{display:block;font-size:17px}
-.xtra .xto{background:#16253f;border-color:#2f4b7c}
-.xtra .over{background:#431616;border-color:var(--ko)}
+.xtra .xto{background:var(--info);border-color:var(--infoline)}
+.xtra .over{background:var(--kobg);border-color:var(--ko)}
 .endrow{margin-top:14px}
-.endbtn{flex:0 0 auto;max-width:260px;margin:0 auto;background:#3a1620;border-color:#7f1d1d;font-weight:700}
+.endbtn{flex:0 0 auto;max-width:260px;margin:0 auto;background:var(--outbg);border-color:var(--koline);font-weight:700}
 .stepgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
 .stp{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:6px 8px}
 .stp .sl{font-size:13px;color:var(--mut);text-align:center;margin-bottom:4px}
 .stp .sr{display:flex;align-items:center;gap:6px}
 .stp .sr button{flex:0 0 52px;min-height:50px;font-size:26px;font-weight:800;padding:0;line-height:1}
-.stp .sr .sp{background:#12391f;border-color:var(--ok)}
-.stp .sr .sm{background:#431616;border-color:#7f1d1d}
+.stp .sr .sp{background:var(--okbg);border-color:var(--ok)}
+.stp .sr .sm{background:var(--kobg);border-color:var(--koline)}
 .stp .sv{flex:1;text-align:center;font-size:28px;font-weight:800;font-variant-numeric:tabular-nums}
 .pchips{display:flex;gap:4px;justify-content:center;flex-wrap:wrap;margin-bottom:4px}
 .pchip{padding:6px 12px;border-radius:999px;font-weight:700;font-size:14px;color:var(--mut)}
-.pchip.on{color:var(--acc);border-color:var(--acc);background:#2a2f45}
+.pchip.on{color:var(--acc);border-color:var(--acc);background:var(--sel)}
 .bn{display:flex;flex-wrap:wrap;gap:6px}
 .bn .fh{flex:1 0 100%;margin:4px 0 0}
 .bc{padding:6px 10px;font-size:14px;min-height:40px}
@@ -134,6 +144,34 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .cv{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--line)}
 .cv .chk{gap:10px}
 .cv .chk input{width:24px;height:24px}
+/* aspetto */
+html{color-scheme:dark}
+body{min-height:100vh}
+button{box-shadow:0 1px 0 #0002;transition:filter .12s,transform .08s,background .15s,border-color .15s}
+button:active{transform:scale(.97)}
+button.go,button.stop{color:#fff}
+.card,.col,.pad,.sb{box-shadow:var(--shadow)}
+.card,.col,.pad,.sb,#modal .m{border-radius:18px}
+.sb{background:linear-gradient(180deg,var(--panel),var(--panel2))}
+nav{box-shadow:0 2px 10px #0002}
+nav button{font-size:15px;letter-spacing:.2px}
+nav button.th{flex:0 0 52px;font-size:19px;padding:10px 0}
+.sc{letter-spacing:-1px}
+.clk{border-radius:12px;background:var(--panel2);border:1px solid var(--line);padding:2px 14px}
+h3{font-size:18px}
+th{text-transform:uppercase;letter-spacing:.4px;font-size:12px}
+tr:nth-child(even) td{background:color-mix(in srgb,var(--panel2) 45%,transparent)}
+tr.tot td{background:var(--panel2)}
+.pc{border-radius:14px}
+.pc .n{font-size:28px}
+.pc.sel{box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 35%,transparent)}
+.grid3 button,.grid2 button{border-radius:14px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:1px}
+.court{color:var(--courtline)}
+.cf{fill:var(--court)}
+.th-seg{display:flex;gap:6px}
+.th-seg button{flex:1}
+.th-seg button.on{border-color:var(--acc);color:var(--acc);background:var(--sel);font-weight:700}
 </style>
 </head>
 <body>
@@ -144,6 +182,7 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
   <button data-a="view" data-v="shots">Tiri</button>
   <button data-a="view" data-v="log">Cronaca</button>
   <button data-a="view" data-v="menu">Menu</button>
+  <button class="th" data-a="theme" id="thbtn" title="Tema chiaro / scuro">◐</button>
 </nav>
 <main>
   <section id="v-game"></section>
@@ -869,13 +908,13 @@ setInterval(() => {
 
 /* ---------- campo da basket ---------- */
 function courtSVG(inner, id) {
-  const ln = 'fill="none" stroke="#94a3b8" stroke-width="3"';
+  const ln = 'fill="none" stroke="currentColor" stroke-width="3"';
   return '<svg ' + (id ? 'id="' + id + '" ' : '') + 'class="court" viewBox="0 0 500 470">' +
-    '<rect x="0" y="0" width="500" height="470" fill="#1b2740" stroke="#94a3b8" stroke-width="3"/>' +
+    '<rect x="0" y="0" width="500" height="470" class="cf" stroke="currentColor" stroke-width="3"/>' +
     '<rect x="170" y="0" width="160" height="190" ' + ln + '/>' +
     '<circle cx="250" cy="190" r="60" ' + ln + '/>' +
     '<path d="M210 52 A40 40 0 0 0 290 52" ' + ln + '/>' +
-    '<line x1="220" y1="40" x2="280" y2="40" stroke="#94a3b8" stroke-width="3"/>' +
+    '<line x1="220" y1="40" x2="280" y2="40" stroke="currentColor" stroke-width="3"/>' +
     '<circle cx="250" cy="52" r="8" fill="none" stroke="#f97316" stroke-width="3"/>' +
     '<path d="M30 0 V141.5 A237.5 237.5 0 0 0 470 141.5 V0" ' + ln + '/>' +
     inner + '</svg>';
@@ -1007,6 +1046,8 @@ function renderMenu() {
       '<div class="row"><button class="stop" data-a="endgame">Termina partita</button><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
       '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div></div>';
   }
+  const th = getTheme();
+  h += '<div class="card"><h3>Aspetto</h3><div class="th-seg">' + [['auto', 'Automatico'], ['light', '☀ Chiaro'], ['dark', '☾ Scuro']].map(x => '<button data-a="settheme" data-v="' + x[0] + '"' + (th === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div><div class="mut" style="font-size:13px;margin-top:6px">Automatico segue il tema del dispositivo.</div></div>';
   h += accountHTML();
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
   const ngOpen = menuOpen.newgame !== undefined ? menuOpen.newgame : !S;
@@ -1107,7 +1148,19 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
+const THKEY = 'bbstats_theme';
+function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
+function applyTheme() {
+  const t = getTheme(), r = document.documentElement;
+  if (t === 'auto') r.removeAttribute('data-theme'); else r.setAttribute('data-theme', t);
+  const dark = t === 'dark' || (t === 'auto' && !(window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches));
+  const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = dark ? '#0a101d' : '#ffffff';
+  const b = document.getElementById('thbtn'); if (b) b.textContent = t === 'light' ? '☀' : (t === 'dark' ? '☾' : '◐');
+}
+function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
 const H = {
+  theme: () => setTheme({auto: 'light', light: 'dark', dark: 'auto'}[getTheme()]),
+  settheme: b => setTheme(b.dataset.v),
   view: b => { view = b.dataset.v; if (view !== 'box') endBanner = null; if (view === 'subs' && S) initSubs(); render(); },
   sel: b => { const pid = b.dataset.pid; sel = (sel && sel.pid === pid) ? null : {t: +b.dataset.t, pid}; render(); },
   s: b => stat(b.dataset.k),
@@ -1213,8 +1266,28 @@ window.addEventListener('online', () => scheduleSync());
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(() => {});
 if (S) { migrate(S); recompute(S); }
+/* Alla chiusura dell'app la partita in corso termina: al riavvio la trovo senza il marcatore di sessione
+   (sessionStorage sopravvive a un semplice ricaricamento, ma non alla chiusura) e la archivio. */
+let autoClosed = null;
+try {
+  if (!sessionStorage.getItem('bbstats_session')) {
+    if (S) {
+      const g = S, has = (g.log && g.log.length) || g.score[0] || g.score[1];
+      if (has) {
+        g.ended = true; g.endedAt = new Date().toISOString();
+        archiveCurrent(); autoClosed = g;
+      }
+      try { localStorage.removeItem(KEY); } catch (e) {}
+      S = null;
+    }
+    sessionStorage.setItem('bbstats_session', '1');
+  }
+} catch (e) {}
+applyTheme();
 cloudInit();
+if (S === null) view = 'menu';
 render();
+if (autoClosed) toast('La partita precedente è stata chiusa e archiviata: ' + autoClosed.teams[0].name + ' ' + autoClosed.score[0] + '–' + autoClosed.score[1] + ' ' + autoClosed.teams[1].name);
 </script>
 </body>
 </html>
