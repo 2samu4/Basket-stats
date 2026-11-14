@@ -121,6 +121,12 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .xtra b{display:block;font-size:17px}
 .xtra .xto{background:var(--info);border-color:var(--infoline)}
 .xtra .over{background:var(--kobg);border-color:var(--ko)}
+.xbx{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:6px 4px;text-align:center;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.xbx .xl{font-size:12px;color:var(--mut);font-weight:600}
+.xbx .xr{display:flex;align-items:center;justify-content:center;gap:6px}
+.xbx .xr b{font-size:19px;min-width:20px;font-variant-numeric:tabular-nums}
+.xbx .xr button{min-height:36px;min-width:36px;padding:0;font-size:20px;line-height:1}
+.xbx.over{background:var(--kobg);border-color:var(--ko)}
 .endrow{margin-top:14px}
 .endbtn{flex:0 0 auto;max-width:260px;margin:0 auto;background:var(--outbg);border-color:var(--koline);font-weight:700}
 .stepgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:8px}
@@ -157,6 +163,17 @@ button.go,button.stop{color:#fff}
 nav button{font-size:15px;letter-spacing:.2px}
 nav button.th{flex:0 0 52px;font-size:19px;padding:10px 0}
 .sc{letter-spacing:-1px}
+.clk{font-variant-numeric:tabular-nums}
+.fb{display:inline-flex;align-items:center;gap:8px;margin-top:8px;padding:5px 12px;border-radius:999px;background:var(--bar);border:1px solid var(--line);font-size:12px;font-weight:700;letter-spacing:.8px;color:var(--mut)}
+.fb .lamps{display:inline-flex;gap:4px}
+.fb i{width:14px;height:14px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);box-shadow:inset 0 1px 2px #0005}
+.fb i.on{background:var(--acc);border-color:var(--acc);box-shadow:0 0 8px color-mix(in srgb,var(--acc) 70%,transparent)}
+.fb .fn{font-size:16px;color:var(--tx);min-width:12px;text-align:center;font-variant-numeric:tabular-nums}
+.fb.bon{border-color:var(--ko)}
+.fb.bon i.on{background:var(--ko);border-color:var(--ko);box-shadow:0 0 8px color-mix(in srgb,var(--ko) 80%,transparent)}
+.fb .bt{background:var(--ko);color:#fff;border-radius:6px;padding:2px 7px;font-size:11px;animation:bp 1.4s ease-in-out infinite}
+@keyframes bp{50%{opacity:.55}}
+@media(max-width:520px){.fb{gap:4px;padding:3px 7px}.fb i{width:9px;height:9px}.fb .fl,.fb .bt{display:none}.fb .fn{font-size:13px}}
 .clk{border-radius:12px;background:var(--panel2);border:1px solid var(--line);padding:2px 14px}
 h3{font-size:18px}
 th{text-transform:uppercase;letter-spacing:.4px;font-size:12px}
@@ -172,6 +189,10 @@ tr.pr.sel td{background:var(--sel);color:var(--acc);font-weight:700}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-offset:1px}
 .court{color:var(--courtline)}
 .cf{fill:var(--court)}
+.fe{display:flex;gap:8px;align-items:center;margin:6px 0}
+.fe select{flex:1;min-width:0}
+.fe .mut{flex:0 0 78px;font-size:13px}
+td.fcell{cursor:pointer;color:var(--acc);font-weight:700;white-space:nowrap}
 .th-seg{display:flex;gap:6px}
 .th-seg button{flex:1}
 .th-seg button.on{border-color:var(--acc);color:var(--acc);background:var(--sel);font-weight:700}
@@ -206,6 +227,12 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--acc);outline-off
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = s => { s = Math.max(0, Math.ceil(s)); return String(Math.floor(s/60)).padStart(2,'0') + ':' + String(s%60).padStart(2,'0'); };
+/* tabellone: sotto il minuto mostra i decimi di secondo (59.3), altrimenti mm:ss */
+const fmtClock = s => {
+  s = Math.max(0, s);
+  if (s < 60) { const t = Math.floor(s * 10 + 1e-6); return Math.floor(t / 10) + '.' + (t % 10); }
+  return fmt(s);
+};
 const fmtMin = s => { s = Math.round(s); return Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); };
 const pct = (m,a) => a ? Math.round(m/a*100) + '%' : '–';
 const periodName = (q,nq) => q <= nq ? 'Q' + q : 'OT' + (q - nq);
@@ -213,12 +240,53 @@ const loadJSON = k => { try { return JSON.parse(localStorage.getItem(k)); } catc
 const saveJSON = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
 const KEY = 'bbstats_current', HKEY = 'bbstats_history', TKEY = 'bbstats_teams', LKEY = 'bbstats_askloc';
-const RKEY = 'bbstats_roster', CKEY = 'bbstats_conv';
+const RKEY = 'bbstats_roster', CKEY = 'bbstats_conv', SQKEY = 'bbstats_squadre';
 
-/* ---------- la mia squadra (anagrafica) e convocati ---------- */
-const getRoster = () => loadJSON(RKEY) || {name: 'La mia squadra', players: []};
-const getConv = () => { const c = loadJSON(CKEY) || {}; return {sel: c.sel || [], starters: c.starters || [], side: c.side || 0, color: c.color === 'blue' ? 'blue' : 'white'}; };
-function saveRoster(r) { r.updatedAt = Date.now(); saveJSON(RKEY, r); scheduleSync(); }
+/* ---------- le mie squadre (anagrafiche) e convocati ----------
+   Ogni squadra ha: id, nome, giocatori, convocati/quintetto/colore ricordati (conv), updatedAt.
+   Tutto il resto dell'app lavora sulla squadra "attiva" tramite getRoster / saveRoster / getConv / saveConv. */
+const convOf = c => { c = c || {}; return {sel: c.sel || [], starters: c.starters || [], side: c.side || 0, color: c.color === 'blue' ? 'blue' : 'white'}; };
+function loadStore() {
+  let st = loadJSON(SQKEY);
+  if (!st || !Array.isArray(st.teams)) {                       // prima volta: porto dentro la squadra dei vecchi dati
+    const r = loadJSON(RKEY);
+    st = {active: 'default', deleted: {}, teams: [{id: 'default', name: (r && r.name) || 'La mia squadra', players: (r && r.players) || [],
+      updatedAt: (r && r.updatedAt) || 0, conv: convOf(loadJSON(CKEY))}]};
+    saveJSON(SQKEY, st);
+  }
+  if (!st.deleted) st.deleted = {};
+  if (!st.teams.length) st.teams.push({id: 't' + Date.now(), name: 'La mia squadra', players: [], updatedAt: 0, conv: convOf()});
+  if (!st.teams.some(t => t.id === st.active)) st.active = st.teams[0].id;
+  return st;
+}
+const saveStore = st => saveJSON(SQKEY, st);
+const activeTeam = st => st.teams.find(t => t.id === st.active);
+function getRoster() { const t = activeTeam(loadStore()); return {id: t.id, name: t.name, players: JSON.parse(JSON.stringify(t.players)), updatedAt: t.updatedAt || 0}; }
+function saveRoster(r) {
+  const st = loadStore(), t = st.teams.find(x => x.id === (r.id || st.active)) || activeTeam(st);
+  t.name = r.name; t.players = r.players; t.updatedAt = Date.now();
+  saveStore(st); scheduleSync();
+}
+const getConv = () => convOf(activeTeam(loadStore()).conv);
+function saveConv(c) { const st = loadStore(); activeTeam(st).conv = convOf(c); saveStore(st); }
+const teamList = () => loadStore().teams;
+function newTeam() {
+  const v = prompt('Nome della nuova squadra'); if (v === null) return;
+  const st = loadStore(), id = 't' + Date.now();
+  st.teams.push({id, name: v.trim() || 'Nuova squadra', players: [], updatedAt: Date.now(), conv: convOf()});
+  st.active = id; saveStore(st); scheduleSync(); menuOpen.roster = true; render();
+}
+function switchTeam(id) {
+  const st = loadStore(); if (!st.teams.some(t => t.id === id)) return;
+  st.active = id; saveStore(st); render();
+}
+function deleteTeam() {
+  const st = loadStore(), t = activeTeam(st);
+  if (st.teams.length < 2) { toast('Serve almeno una squadra'); return; }
+  if (!confirm('Eliminare la squadra "' + t.name + '" con i suoi ' + t.players.length + ' giocatori? Le partite già archiviate restano.')) return;
+  st.teams = st.teams.filter(x => x.id !== t.id); st.deleted[t.id] = Date.now(); st.active = st.teams[0].id;
+  saveStore(st); scheduleSync(); menuOpen.roster = true; render();
+}
 const byNum = (a, b) => {
   const x = a.num === '' ? 1e9 : +a.num, y = b.num === '' ? 1e9 : +b.num;
   return x - y || a.name.localeCompare(b.name);
@@ -242,7 +310,7 @@ function delMyPlayer(id) {
   const r = getRoster(), p = r.players.find(x => x.id === id); if (!p) return;
   if (!confirm('Eliminare ' + label(p) + ' dalla squadra?')) return;
   r.players = r.players.filter(x => x.id !== id); saveRoster(r);
-  const c = getConv(); c.sel = c.sel.filter(x => x !== id); c.starters = c.starters.filter(x => x !== id); saveJSON(CKEY, c);
+  const c = getConv(); c.sel = c.sel.filter(x => x !== id); c.starters = c.starters.filter(x => x !== id); saveConv(c);
   menuOpen.roster = true; render();
 }
 function updateConvUI(c) {
@@ -254,7 +322,7 @@ function convChange(inp) {
     if (c.sel.length >= 12) { inp.checked = false; toast('Massimo 12 convocati'); return; }
     c.sel.push(id);
   } else { c.sel = c.sel.filter(x => x !== id); c.starters = c.starters.filter(x => x !== id); }
-  saveJSON(CKEY, c); updateConvUI(c);
+  saveConv(c); updateConvUI(c);
 }
 
 const STAT0 = () => ({sec:0,pts:0,fgm:0,fga:0,tpm:0,tpa:0,ftm:0,fta:0,oreb:0,dreb:0,ast:0,stl:0,blk:0,to:0,pf:0,pm:0});
@@ -416,7 +484,7 @@ async function syncNow(manual) {
   if (cloud.syncing) { cloud.again = true; return; }
   if (navigator.onLine === false) { setStatus('Offline: sincronizzo appena torni online.'); return; }
   const uid = cloud.user.uid, prev = localStorage.getItem(UKEY);
-  if (prev && prev !== uid && (getRoster().players.length || (loadJSON(HKEY) || []).length) &&
+  if (prev && prev !== uid && (loadStore().teams.some(t => t.players.length) || (loadJSON(HKEY) || []).length) &&
       !confirm('Questo dispositivo contiene i dati di un altro account. Vuoi unirli a quelli di questo account?')) { try { await cloud.auth.signOut(); } catch (e) {} return; }
   cloud.syncing = true; setStatus('Sincronizzazione…');
   try {
@@ -437,23 +505,48 @@ async function syncNow(manual) {
 }
 /* squadra e partite archiviate: vince la versione più recente (updatedAt); la partita in corso non si sincronizza */
 async function syncData(uid) {
-  const base = cloud.db.collection('users').doc(uid), rRef = base.collection('meta').doc('roster'), gRef = base.collection('games');
-  const [rd, gs] = await withTimeout(Promise.all([rRef.get(), gRef.get()]), 20000);
+  const base = cloud.db.collection('users').doc(uid), rRef = base.collection('meta').doc('roster'), tRef = base.collection('teams'), gRef = base.collection('games');
+  const [rd, td, gs] = await withTimeout(Promise.all([rRef.get(), tRef.get(), gRef.get()]), 20000);
   const jobs = [];
-  /* ---- squadra ---- */
-  const remote = rd.exists ? rd.data() : null, local = getRoster();
-  const lt = local.updatedAt || 0, rt = remote ? (remote.updatedAt || 0) : 0;
-  const pushRoster = () => { const t = lt || Date.now(); if (!lt) { local.updatedAt = t; saveJSON(RKEY, local); }
-    jobs.push(() => rRef.set({name: local.name || '', players: local.players || [], updatedAt: t})); };
-  if (remote && rt > lt) {
-    if (local.players.length && lt === 0 && !confirm('Sul cloud c\'è già una squadra ("' + (remote.name || '') + '", ' + (remote.players || []).length + ' giocatori). Usarla al posto di quella di questo dispositivo?')) {
-      local.updatedAt = Date.now(); saveJSON(RKEY, local); jobs.push(() => rRef.set({name: local.name || '', players: local.players, updatedAt: local.updatedAt}));
-    } else {
-      const players = (remote.players || []).map(x => ({id: x.id, num: String(x.num ?? ''), name: String(x.name || '')}));
-      saveJSON(RKEY, {name: remote.name || 'La mia squadra', players, updatedAt: rt});
-      const c = getConv(), ids = players.map(x => x.id); c.sel = c.sel.filter(id => ids.includes(id)); c.starters = c.starters.filter(id => ids.includes(id)); saveJSON(CKEY, c);
+  /* ---- squadre ---- */
+  const st = loadStore(), tombT = st.deleted;
+  const remoteT = {}; td.forEach(d => { remoteT[d.id] = d.data(); });
+  if (rd.exists && !remoteT['default']) remoteT['default'] = rd.data();               // formato vecchio: una sola squadra
+  const ld = st.teams.find(x => x.id === 'default');
+  if (ld && remoteT['default'] && !remoteT['default'].deleted && ld.players.length && !(ld.updatedAt || 0)) {
+    const nid = 't' + Date.now(); if (st.active === 'default') st.active = nid; ld.id = nid;   // la squadra di questo dispositivo non viene sovrascritta
+  }
+  const normP = ps => (ps || []).map(x => ({id: x.id, num: String(x.num ?? ''), name: String(x.name || '')}));
+  const keepConv = (c, players) => { const ids = players.map(x => x.id), k = convOf(c); k.sel = k.sel.filter(i => ids.includes(i)); k.starters = k.starters.filter(i => ids.includes(i)); return k; };
+  Object.keys(remoteT).forEach(id => {
+    const r = remoteT[id], rt = r.updatedAt || 0, l = st.teams.find(x => x.id === id);
+    if (tombT[id] && tombT[id] >= rt) return;                          // eliminata qui: da propagare
+    if (r.deleted) { if (l && rt >= (l.updatedAt || 0)) st.teams = st.teams.filter(x => x.id !== id); return; }
+    delete tombT[id];
+    const players = normP(r.players);
+    if (!l) st.teams.push({id, name: r.name || 'Squadra', players, updatedAt: rt, conv: convOf()});
+    else if (rt > (l.updatedAt || 0)) { l.name = r.name || l.name; l.players = players; l.updatedAt = rt; l.conv = keepConv(l.conv, players); }
+  });
+  if (st.teams.length > 1) st.teams = st.teams.filter(x => !(x.id === 'default' && !x.players.length && !(x.updatedAt || 0)));   // squadra vuota mai usata: non serve
+  if (!st.teams.length) st.teams.push({id: 't' + Date.now(), name: 'La mia squadra', players: [], updatedAt: 0, conv: convOf()});
+  if (!st.teams.some(x => x.id === st.active)) st.active = st.teams[0].id;
+  st.teams.forEach(l => {
+    const r = remoteT[l.id];
+    if (!r && !l.players.length && !(l.updatedAt || 0)) return;          // squadra vuota mai usata: non serve nel cloud
+    if (!r || (l.updatedAt || 0) > (r.updatedAt || 0)) {
+      if (!l.updatedAt) l.updatedAt = Date.now();
+      const t = l.updatedAt; jobs.push(() => tRef.doc(l.id).set({name: l.name || '', players: l.players || [], updatedAt: t}));
     }
-  } else if ((local.players.length || lt > 0) && (!remote || lt > rt)) pushRoster();
+  });
+  const pushedTombT = [];
+  Object.keys(tombT).forEach(id => {
+    const r = remoteT[id];
+    const tt = tombT[id];
+    if (!r || (!r.deleted && (r.updatedAt || 0) <= tt)) jobs.push(() => tRef.doc(id).set({deleted: true, updatedAt: tt}));
+    pushedTombT.push(id);
+  });
+  pushedTombT.forEach(id => { delete tombT[id]; });
+  saveStore(st);
   /* ---- partite archiviate ---- */
   const remoteG = {}; gs.forEach(d => { remoteG[d.id] = d.data(); });
   const tomb = loadJSON(DKEY) || {};
@@ -584,6 +677,48 @@ function doFoul(ft) {
   addLog(who + ': Fallo ' + ft + ' – ' + F.n.toLowerCase() + (F.tm ? '' : ' (non di squadra' + (F.pl ? '' : ', non al giocatore') + ')'));
   foulCtx = null; closeModal(); save(); render();
 }
+/* ---------- modifica dei falli di un giocatore ---------- */
+const PFTYPES = Object.keys(FOULS).filter(k => FOULS[k].pl);
+function foulOpts(cur) { return PFTYPES.map(k => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + k + ' – ' + esc(FOULS[k].n) + '</option>').join(''); }
+function openFouls(pid) {
+  const p = findPlayer(S, pid); if (!p) return;
+  const t = S.teams.findIndex(T => T.players.some(x => x.id === pid));
+  const list = (S.fouls || []).map((x, i) => [x, i]).filter(([x]) => x.pid === pid);
+  const extra = S.stats[pid].pf - list.length;
+  let h = '<h3>Falli di ' + esc(label(p)) + '</h3><div class="mut" style="margin-bottom:6px">' + esc(S.teams[t].name) + ' · totale ' + S.stats[pid].pf + '</div>';
+  h += list.map(([x, i]) => '<div class="fe"><span class="mut">' + periodName(x.q, S.nq) + ' ' + fmt(x.c) + '</span><select data-fi="' + i + '">' + foulOpts(x.type) + '</select>' +
+    '<button class="ko sm" data-a="fdel" data-fi="' + i + '" aria-label="Elimina fallo">🗑</button></div>').join('');
+  if (extra > 0) h += '<div class="fe"><span class="mut">' + extra + ' fall' + (extra > 1 ? 'i' : 'o') + ' senza dettaglio</span><span></span><button class="ko sm" data-a="fdelx" aria-label="Togli uno">−1</button></div>';
+  if (!list.length && extra <= 0) h += '<div class="mut" style="margin:6px 0">Nessun fallo.</div>';
+  let qs = ''; for (let i = 1; i <= S.maxq; i++) if (S.starts[i]) qs += '<option value="' + i + '"' + (i === S.quarter ? ' selected' : '') + '>' + periodName(i, S.nq) + '</option>';
+  h += '<div class="fh">Aggiungi un fallo</div><div class="fe"><select id="fa-q">' + qs + '</select><select id="fa-t">' + foulOpts('P') + '</select><button class="go sm" data-a="fadd" aria-label="Aggiungi">+</button></div>' +
+    '<div class="mut" style="font-size:13px;margin:8px 0">Le modifiche aggiornano i falli di squadra e si possono annullare con "Annulla".</div><button data-a="closemodal">Chiudi</button>';
+  efCtx = pid; openModal(h);
+}
+let efCtx = null;
+function fouled(msg) { recompute(S); addLog(msg); save(); render(); openFouls(efCtx); }
+function foulWho(pid) { return label(findPlayer(S, pid)); }
+function foulChange(i, type) {
+  const x = S.fouls[i]; if (!x || !FOULS[type] || x.type === type) return;
+  snap(); const old = x.type; x.type = type;
+  fouled(foulWho(x.pid) + ': correzione fallo ' + old + ' → ' + type);
+}
+function foulDelete(i) {
+  const x = S.fouls[i]; if (!x) return;
+  snap(); S.fouls.splice(i, 1); S.stats[x.pid].pf = Math.max(0, S.stats[x.pid].pf - 1);
+  fouled(foulWho(x.pid) + ': eliminato fallo ' + x.type);
+}
+function foulDeleteExtra() {
+  snap(); S.stats[efCtx].pf = Math.max(0, S.stats[efCtx].pf - 1);
+  fouled(foulWho(efCtx) + ': tolto un fallo');
+}
+function foulAdd() {
+  const type = $('#fa-t').value, q = +$('#fa-q').value; if (!FOULS[type]) return;
+  const t = S.teams.findIndex(T => T.players.some(x => x.id === efCtx));
+  snap(); (S.fouls = S.fouls || []).push({t, pid: efCtx, type, q, c: q === S.quarter ? S.clock : (S.clocks[q] != null ? S.clocks[q] : 0)});
+  S.stats[efCtx].pf++;
+  fouled(foulWho(efCtx) + ': aggiunto fallo ' + type + ' (' + periodName(q, S.nq) + ')');
+}
 function foulSum(g, t) {
   const f = (g.fouls || []).filter(x => x.t === t);
   if (!f.length) return '';
@@ -607,12 +742,23 @@ function doTimeout(t) {
   save(); render();
 }
 function benchFoul(t, k) { foulCtx = {t, pid: null}; doFoul(k); }
+function xbox(t, k, name, n, over) {
+  return '<div class="xbx' + (over ? ' over' : '') + '"><div class="xl">' + name + '</div><div class="xr">' +
+    '<button class="sm" data-a="cbd" data-t="' + t + '" data-k="' + k + '"' + (n ? '' : ' disabled') + ' aria-label="Togli uno: ' + name + '">−</button><b>' + n + '</b>' +
+    '<button class="sm" data-a="cb" data-t="' + t + '" data-k="' + k + '" aria-label="Aggiungi uno: ' + name + '">+</button></div></div>';
+}
+function benchFoulDel(t, k) {
+  const i = (S.fouls || []).map(x => x.t === t && x.type === k).lastIndexOf(true);
+  if (i < 0) return;
+  snap(); S.fouls.splice(i, 1);
+  addLog(S.teams[t].name + ': Tolto fallo ' + k + (k === 'C1' ? ' (coach)' : ' (panchina)'));
+  save(); render();
+}
 function extrasHTML(t) {
   const used = toUsed(S, t), allow = toAllow(S, S.quarter), c = benchCount(S, t, 'C1'), b = benchCount(S, t, 'B1');
   const out = c >= 2 || c + b >= 3;
   return '<div class="xtra"><button class="xto' + (used >= allow ? ' over' : '') + '" data-a="to" data-t="' + t + '">⏱ Timeout <b>' + used + '/' + allow + '</b></button>' +
-    '<button class="xb' + (out ? ' over' : '') + '" data-a="cb" data-t="' + t + '" data-k="C1">Coach C1 <b>' + c + '</b></button>' +
-    '<button class="xb' + (out ? ' over' : '') + '" data-a="cb" data-t="' + t + '" data-k="B1">Panchina B1 <b>' + b + '</b></button></div>';
+    xbox(t, 'C1', 'Coach C1', c, out) + xbox(t, 'B1', 'Panchina B1', b, out) + '</div>';
 }
 function toSum(g, t) {
   const l = toList(g, t); if (!l.length) return '';
@@ -664,12 +810,11 @@ function importTeam(file) {
       const players = d.players.filter(p => p && (p.num !== undefined || p.name)).map((p, i) =>
         ({id: 'p' + stamp + '_' + i, num: String(p.num ?? ''), name: String(p.name || ('Giocatore ' + p.num))}));
       if (!players.length) throw 0;
-      const cur = getRoster();
-      if (cur.players.length && !confirm('Sostituire la squadra attuale (' + cur.players.length + ' giocatori) con quella del file (' + players.length + ' giocatori)?')) return;
       players.sort(byNum);
-      saveRoster({name: String(d.name || cur.name || 'La mia squadra'), players});
-      const c = getConv(); c.sel = []; c.starters = []; saveJSON(CKEY, c);
-      menuOpen.roster = true; render(); toast('Squadra importata: ' + players.length + ' giocatori');
+      const st = loadStore(), id = 't' + stamp;
+      st.teams.push({id, name: String(d.name || 'Squadra importata'), players, updatedAt: Date.now(), conv: convOf()});
+      st.active = id; saveStore(st); scheduleSync();
+      menuOpen.roster = true; render(); toast('Squadra importata: ' + players.length + ' giocatori (nuova squadra)');
     } catch (e) { toast('File squadra non valido'); }
   };
   rd.readAsText(file);
@@ -711,8 +856,16 @@ function oppAction(t, k) {
   const T = S.teams[t], o = S.oppStats;
   if (k[0] === 'd') {
     const n = +k[1];
-    if (o['m' + n] < 1) { undoStack.pop(); toast('Nessun punto da togliere'); return; }
-    o['m' + n]--; S.score[t] -= n;
+    if (S.score[t] < n) { undoStack.pop(); toast('Nessun punto da togliere'); return; }
+    S.score[t] -= n;
+    // riallinea i contatori (liberi, da 2, da 3) al nuovo punteggio, cambiando il meno possibile
+    let best = null;
+    for (let c3 = 0; c3 <= o.m3; c3++) for (let c2 = 0; c2 <= o.m2 + o.m3; c2++) {
+      const c1 = S.score[t] - 2 * c2 - 3 * c3; if (c1 < 0) continue;
+      const d = Math.abs(o.m1 - c1) + Math.abs(o.m2 - c2) + Math.abs(o.m3 - c3);
+      if (!best || d < best.d) best = {d, c1, c2, c3};
+    }
+    if (best) { o.m1 = best.c1; o.m2 = best.c2; o.m3 = best.c3; }
     (S.pts = S.pts || []).push({t, n: -n, q: S.quarter, c: S.clock});
     addLog(T.name + ': Correzione −' + n + '  [' + S.score[0] + '-' + S.score[1] + ']');
   } else {
@@ -747,9 +900,9 @@ function toggleClock() {
   S.running = !S.running; lastTs = null; wake(S.running); save(); render();
 }
 function editClock() {
-  const v = prompt('Imposta il tempo (mm:ss)', fmt(S.clock)); if (v === null) return;
-  const m = v.trim().match(/^(\d{1,2})(?::(\d{1,2}))?$/); if (!m) { toast('Formato non valido'); return; }
-  S.clock = Math.min(periodLen(S, S.quarter), (+m[1]) * 60 + (+(m[2] || 0))); save(); render();
+  const v = prompt('Imposta il tempo (mm:ss, oppure mm:ss.d con i decimi)', S.clock < 60 ? '00:' + (S.clock < 10 ? '0' : '') + fmtClock(S.clock) : fmt(S.clock)); if (v === null) return;
+  const m = v.trim().match(/^(\d{1,2})(?::(\d{1,2})(?:\.(\d))?)?$/); if (!m) { toast('Formato non valido'); return; }
+  S.clock = Math.min(periodLen(S, S.quarter), (+m[1]) * 60 + (+(m[2] || 0)) + (+(m[3] || 0)) / 10); save(); render();
 }
 
 /* ---------- periodi: scelta, fine periodo, quintetto di inizio ---------- */
@@ -841,10 +994,10 @@ function renderSubs() {
     '<div class="row"><button data-a="editstart">Modifica quintetto iniziale</button></div></div>' +
     '<div class="card"><h3>Nuovo cambio · ' + periodName(q, S.nq) + '</h3>' +
     '<label>Minuto di ingresso — tempo rimasto sul tabellone</label>' +
-    '<div class="row" style="flex-wrap:nowrap"><select id="sub-m" style="flex:0 0 90px">' + mins + '</select><b>:</b><input id="sub-s" type="number" min="0" max="59" inputmode="numeric" value="' + (c % 60) + '" style="flex:0 0 90px"><button data-a="subnow" style="flex:1">Tempo attuale (' + fmt(clockOf(q)) + ')</button></div>' +
+    '<div class="row" style="flex-wrap:nowrap"><select id="sub-m" style="flex:0 0 90px">' + mins + '</select><b style="flex:0 0 auto">:</b><input id="sub-s" type="number" min="0" max="59" inputmode="numeric" value="' + (c % 60) + '" style="flex:0 0 90px"><button data-a="subnow" style="flex:1">Tempo attuale (' + fmt(clockOf(q)) + ')</button></div>' +
     (future ? '<div class="mut" style="font-size:13px">Il minuto è successivo al tempo attuale: il cambio avrà effetto quando il cronometro arriva a ' + fmt(c) + '.</div>' : '') +
-    '<div class="fh">Esce (in campo a ' + fmt(c) + ')</div><div class="bench">' + on.map(id => pbtn(id, 'subout', subForm.out)).join('') + '</div>' +
-    '<div class="fh">Entra (panchina)</div><div class="bench">' + (off.length ? off.map(p => pbtn(p.id, 'subin', subForm.inn)).join('') : '<span class="mut">Nessuno in panchina.</span>') + '</div>' +
+    '<div class="fh">Esce (in campo a ' + fmt(c) + ')</div><div class="bench">' + on.slice().sort((x, y) => byNum(findPlayer(S, x), findPlayer(S, y))).map(id => pbtn(id, 'subout', subForm.out)).join('') + '</div>' +
+    '<div class="fh">Entra (panchina)</div><div class="bench">' + (off.length ? off.slice().sort(byNum).map(p => pbtn(p.id, 'subin', subForm.inn)).join('') : '<span class="mut">Nessuno in panchina.</span>') + '</div>' +
     '<div class="row"><button class="go" data-a="subadd"' + (subForm.out && subForm.inn ? '' : ' disabled') + '>Registra cambio</button></div></div>' +
     '<div class="card"><h3>Cambi di ' + periodName(q, S.nq) + '</h3>' + (subs.length ? subs.map(s =>
       '<div class="hi"><div><b style="color:var(--acc);font-variant-numeric:tabular-nums">' + fmt(s.c) + '</b> &nbsp;↓ ' + nm(s.out) + ' &nbsp;↑ ' + nm(s.in) + '</div><div class="b"><button data-a="subdel" data-seq="' + s.seq + '">✕</button></div></div>').join('') : '<span class="mut">Nessun cambio registrato.</span>') + '</div>';
@@ -901,11 +1054,11 @@ setInterval(() => {
   const d = Math.min((now - lastTs) / 1000, S.clock); lastTs = now;
   S.clock -= d;
   if (S.clock <= 0.001) { periodEnded(false); return; }
-  const c = $('#clock'); if (c) c.textContent = fmt(S.clock);
+  const c = $('#clock'); if (c) c.textContent = fmtClock(S.clock);
   if (syncOnCourt(S) && view === 'game') render();            // un cambio programmato è entrato in vigore
   if (view === 'box' && now - lastBoxRender > 1000) { lastBoxRender = now; renderBox(); }
   if (now - lastSave > 5000) save();
-}, 200);
+}, 100);
 
 /* ---------- campo da basket ---------- */
 function courtSVG(inner, id) {
@@ -941,16 +1094,16 @@ function teamCol(t) {
     const ob = (cls, k, big, small) => '<button class="' + cls + '" data-a="oa" data-t="' + t + '" data-k="' + k + '"><span class="ob">' + big + '</span><span class="os">' + small + '</span></button>';
     return '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>' +
       '<div class="grid2">' + ob('ok', 'm1', '+1', 'Tiro libero · ' + o.m1) + ob('ok', 'm2', '+2', 'Da 2 · ' + o.m2) + ob('ok', 'm3', '+3', 'Da 3 · ' + o.m3) + ob('ko', 'pf', 'Fallo', 'Falli · ' + o.pf) +
-      '</div><div class="grid3m">' + ['1', '2', '3'].map(n => '<button class="ko sm" data-a="oa" data-t="' + t + '" data-k="d' + n + '"' + (o['m' + n] > 0 ? '' : ' disabled') + '>−' + n + '</button>').join('') + '</div>' + extrasHTML(t) + '</div>';
+      '</div><div class="grid3m">' + ['1', '2', '3'].map(n => '<button class="ko sm" data-a="oa" data-t="' + t + '" data-k="d' + n + '"' + (S.score[t] >= +n ? '' : ' disabled') + '>−' + n + '</button>').join('') + '</div>' + extrasHTML(t) + '</div>';
   }
   let h = '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>';
-  T.onCourt.forEach(pid => {
+  T.onCourt.slice().sort((x, y) => byNum(findPlayer(S, x), findPlayer(S, y))).forEach(pid => {
     const p = findPlayer(S, pid), st = S.stats[pid], cls = ['pc'];
     if (sel && sel.pid === pid) cls.push('sel');
     if (st.pf >= 5) cls.push('out'); else if (st.pf >= 4) cls.push('warn');
     h += '<button class="' + cls.join(' ') + '" data-a="sel" data-t="' + t + '" data-pid="' + pid + '"><span class="n">' + esc(p.num) + '</span><span class="nm">' + esc(p.name) + '</span><span class="ps">' + st.pts + ' pt · ' + (st.oreb + st.dreb) + ' rb · ' + st.ast + ' as · ' + st.pf + ' f</span></button>';
   });
-  const bench = T.players.filter(p => !T.onCourt.includes(p.id));
+  const bench = T.players.filter(p => !T.onCourt.includes(p.id)).sort(byNum);
   if (bench.length) h += '<div class="bn"><div class="fh">Panchina</div>' + bench.map(p => '<button class="bc' + (sel && sel.pid === p.id ? ' sel' : '') + '" data-a="sel" data-t="' + t + '" data-pid="' + p.id + '">' + esc(p.num) + ' ' + esc(p.name) + '</button>').join('') + '</div>';
   return h + extrasHTML(t) + '</div>';
 }
@@ -965,16 +1118,22 @@ function padHTML() {
       return '<div class="stp"><div class="sl">' + n + '</div><div class="sr"><button class="sm" data-a="sd" data-k="' + k + '"' + (v ? '' : ' disabled') + ' aria-label="Togli uno: ' + n + '">−</button><span class="sv">' + (v === null ? '–' : v) + '</span><button class="sp" data-a="s" data-k="' + k + '"' + d + ' aria-label="Aggiungi uno: ' + n + '">+</button></div></div>';
     }).join('') + '</div><div class="grid3" style="margin-top:8px;grid-template-columns:1fr 1fr">' +
     b('', 'pf', 'Fallo') +
-    '<button class="ut" data-a="undo">↶ Annulla</button></div></div>';
+    '<button class="ut" data-a="undo">↶ Annulla</button></div>' +
+    '<button class="ut" data-a="editfouls" style="width:100%;margin-top:8px"' + d + '>✎ Modifica falli' + (p ? ' di ' + esc(p.name) : '') + '</button></div>';
+}
+function foulBar(t) {
+  const n = S.tf[t] || 0, bon = n >= 5;
+  let l = ''; for (let i = 1; i <= 5; i++) l += '<i class="' + (i <= n ? 'on' : '') + '"></i>';
+  return '<div class="fb' + (bon ? ' bon' : '') + '"><span class="fl">FALLI</span><span class="lamps">' + l + '</span><span class="fn">' + n + '</span>' + (bon ? '<span class="bt">BONUS</span>' : '') + '</div>';
 }
 function renderGame() {
   let pchips = ''; for (let i = 1; i <= S.maxq; i++) if (S.starts[i]) pchips += '<button class="pchip' + (i === S.quarter ? ' on' : '') + '" data-a="goper" data-q="' + i + '">' + periodName(i, S.nq) + '</button>';
   $('#v-game').innerHTML =
-    (S.name ? '<div class="gname">' + esc(S.name) + '</div>' : '') + '<div class="sb"><div class="sbt"><div class="tn">' + chip(0) + esc(S.teams[0].name) + '</div><div class="sc">' + S.score[0] + '</div></div>' +
-    '<div class="sbm"><div class="pchips">' + pchips + '</div><div class="clk" id="clock" data-a="editclock">' + fmt(S.clock) + '</div>' +
+    (S.name ? '<div class="gname">' + esc(S.name) + '</div>' : '') + '<div class="sb"><div class="sbt"><div class="tn">' + chip(0) + esc(S.teams[0].name) + '</div><div class="sc">' + S.score[0] + '</div>' + foulBar(0) + '</div>' +
+    '<div class="sbm"><div class="pchips">' + pchips + '</div><div class="clk" id="clock" data-a="editclock">' + fmtClock(S.clock) + '</div>' +
     '<div class="sbb"><button class="' + (S.running ? 'stop' : 'go') + '" data-a="toggle">' + (S.running ? '⏸ Stop' : '▶ Avvia') + '</button>' +
     (S.quarter < S.maxq ? '<button data-a="nextper">' + periodName(S.quarter + 1, S.nq) + ' ▸</button>' : '<button data-a="endper">Fine periodo</button>') + '</div></div>' +
-    '<div class="sbt"><div class="tn">' + chip(1) + esc(S.teams[1].name) + '</div><div class="sc">' + S.score[1] + '</div></div></div>' +
+    '<div class="sbt"><div class="tn">' + chip(1) + esc(S.teams[1].name) + '</div><div class="sc">' + S.score[1] + '</div>' + foulBar(1) + '</div></div>' +
     '<div class="board">' + teamCol(0) + padHTML() + teamCol(1) + '</div>' +
     '<div class="row endrow"><button class="endbtn" data-a="endgame">Termina partita</button></div>';
 }
@@ -1006,7 +1165,7 @@ function boxHTML(g) {
     T.players.forEach(p => {
       const s = g.stats[p.id]; Object.keys(tot).forEach(k => tot[k] += s[k]);
       const on = T.onCourt.includes(p.id);
-      rows += '<tr' + (g === S ? ' class="pr' + (shotFilter.pid === p.id ? ' sel' : '') + '" data-a="shotpid" data-id="' + p.id + '"' : '') + '><td>' + esc(p.num) + '</td><td>' + esc(p.name) + (on && g === S ? ' •' : '') + '</td><td>' + fmtMin(s.sec) + '</td><td><b>' + s.pts + '</b></td><td>' + s.fgm + '/' + s.fga + '</td><td>' + s.tpm + '/' + s.tpa + '</td><td>' + s.ftm + '/' + s.fta + '</td><td>' + s.oreb + '</td><td>' + s.dreb + '</td><td>' + (s.oreb + s.dreb) + '</td><td>' + s.ast + '</td><td>' + s.stl + '</td><td>' + s.blk + '</td><td>' + s.to + '</td><td>' + s.pf + '</td><td>' + (s.pm > 0 ? '+' : '') + s.pm + '</td></tr>';
+      rows += '<tr' + (g === S ? ' class="pr' + (shotFilter.pid === p.id ? ' sel' : '') + '" data-a="shotpid" data-id="' + p.id + '"' : '') + '><td>' + esc(p.num) + '</td><td>' + esc(p.name) + (on && g === S ? ' •' : '') + '</td><td>' + fmtMin(s.sec) + '</td><td><b>' + s.pts + '</b></td><td>' + s.fgm + '/' + s.fga + '</td><td>' + s.tpm + '/' + s.tpa + '</td><td>' + s.ftm + '/' + s.fta + '</td><td>' + s.oreb + '</td><td>' + s.dreb + '</td><td>' + (s.oreb + s.dreb) + '</td><td>' + s.ast + '</td><td>' + s.stl + '</td><td>' + s.blk + '</td><td>' + s.to + '</td><td' + (g === S ? ' class="fcell" data-a="editfouls" data-id="' + p.id + '" title="Modifica i falli"' : '') + '>' + s.pf + (g === S ? ' ✎' : '') + '</td><td>' + (s.pm > 0 ? '+' : '') + s.pm + '</td></tr>';
     });
     rows += '<tr class="tot"><td></td><td>Totale</td><td></td><td>' + tot.pts + '</td><td>' + tot.fgm + '/' + tot.fga + '</td><td>' + tot.tpm + '/' + tot.tpa + '</td><td>' + tot.ftm + '/' + tot.fta + '</td><td>' + tot.oreb + '</td><td>' + tot.dreb + '</td><td>' + (tot.oreb + tot.dreb) + '</td><td>' + tot.ast + '</td><td>' + tot.stl + '</td><td>' + tot.blk + '</td><td>' + tot.to + '</td><td>' + tot.pf + '</td><td></td></tr>';
     h += '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table><thead><tr>' + COLS.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
@@ -1054,17 +1213,21 @@ function renderMenu() {
   h += accountHTML();
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
   const ngOpen = menuOpen.newgame !== undefined ? menuOpen.newgame : !S;
-  h += '<details class="card" data-k="roster"' + (roOpen ? ' open' : '') + '><summary><b>La mia squadra</b> <span class="mut">(' + R.players.length + ' giocatori)</span></summary>' +
+  const TL = teamList();
+  const teamSel = id => '<select id="' + id + '">' + TL.map(t => '<option value="' + t.id + '"' + (t.id === R.id ? ' selected' : '') + '>' + esc(t.name || 'Squadra') + '</option>').join('') + '</select>';
+  h += '<details class="card" data-k="roster"' + (roOpen ? ' open' : '') + '><summary><b>Le mie squadre</b> <span class="mut">(' + esc(R.name) + ' · ' + R.players.length + ' giocatori)</span></summary>' +
+    '<label>Squadra</label><div class="row" style="flex-wrap:nowrap">' + teamSel('teamsel') + '<button data-a="newteam" style="flex:0 0 auto">+ Nuova squadra</button></div>' +
     '<label>Nome squadra</label><input id="rname" value="' + esc(R.name) + '">' +
     '<div style="margin-top:10px">' + (R.players.length ? R.players.map(p => '<div class="hi"><div><b style="color:var(--acc)">' + esc(p.num) + '</b> ' + esc(p.name) + '</div><div class="b"><button data-a="editmy" data-id="' + p.id + '">Modifica</button><button data-a="delmy" data-id="' + p.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessun giocatore salvato.</span>') + '</div>' +
     '<div class="row" style="margin-top:12px"><input id="rp-n" placeholder="N°" inputmode="numeric" style="max-width:90px;flex:0 0 90px"><input id="rp-m" placeholder="Cognome"><button data-a="addmy" style="flex:0 0 auto">+ Aggiungi</button></div>' +
-    '<div class="row"><button data-a="expteam">Esporta squadra (file)</button></div><label>Importa squadra da file</label><input type="file" id="impteam" accept=".json,application/json"></details>';
+    '<div class="row"><button data-a="expteam">Esporta squadra (file)</button><button class="stop" data-a="delteam">Elimina questa squadra</button></div><label>Importa squadra da file (crea una nuova squadra)</label><input type="file" id="impteam" accept=".json,application/json"></details>';
   const mineHTML = R.players.length
     ? '<label>Convocati — <span id="cvcount"></span></label>' + R.players.map(p => '<div class="cv"><label class="chk"><input type="checkbox" data-cv="sel" data-id="' + p.id + '"' + (C.sel.includes(p.id) ? ' checked' : '') + '><b style="color:var(--acc);min-width:28px">' + esc(p.num) + '</b> ' + esc(p.name) + '</label></div>').join('')
-    : '<p class="mut">Aggiungi prima i giocatori in "La mia squadra" qui sopra.</p>';
+    : '<p class="mut">Aggiungi prima i giocatori in "Le mie squadre" qui sopra.</p>';
   h += '<details class="card" data-k="newgame"' + (ngOpen ? ' open' : '') + '><summary><b>Nuova partita</b></summary>' +
     '<label>Nome partita (facoltativo)</label><input id="gname" placeholder="es. Campionato – 5ª giornata" value="' + esc(gdraft) + '">' +
     '<label>Nome squadra avversaria</label><input id="tn-opp" value="' + esc(saved.opp.name) + '">' +
+    '<label>Squadra che gioca</label>' + teamSel('teamsel2') +
     '<label>La mia squadra gioca</label><select id="cside"><option value="0"' + (C.side === 0 ? ' selected' : '') + '>In casa</option><option value="1"' + (C.side === 1 ? ' selected' : '') + '>In trasferta</option></select>' +
     '<label>Colore della mia maglia</label><div class="row"><button class="cbtn' + (C.color === 'white' ? ' on' : '') + '" data-a="color" data-v="white"><i class="chip jw"></i>Bianca</button><button class="cbtn' + (C.color === 'blue' ? ' on' : '') + '" data-a="color" data-v="blue"><i class="chip jb"></i>Blu</button></div>' +
     '<div class="mut" style="font-size:14px">Gli avversari avranno la maglia ' + (C.color === 'white' ? 'blu' : 'bianca') + '.</div>' +
@@ -1075,6 +1238,7 @@ function renderMenu() {
   h += '<div class="card"><h3>Partite archiviate</h3>' + (hist.length ? hist.map(g =>
     '<div class="hi"><div>' + (g.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(g.name) + '</div>' : '') + esc(g.teams[0].name) + ' <b>' + g.score[0] + '–' + g.score[1] + '</b> ' + esc(g.teams[1].name) + '<div class="mut" style="font-size:13px">' + new Date(g.date).toLocaleString('it-IT') + '</div></div><div class="b"><button data-a="hres" data-id="' + g.id + '">Riprendi</button><button data-a="hview" data-id="' + g.id + '">Vedi</button><button data-a="hcsv" data-id="' + g.id + '">CSV</button><button data-a="hdel" data-id="' + g.id + '">✕</button></div></div>').join('') : '<span class="mut">Nessuna.</span>') + '</div>';
   h += '<div class="card"><h3>Importa partita</h3><div class="mut" style="margin-bottom:8px">Per spostare una partita da un dispositivo all\'altro: esporta il JSON e importalo qui.</div><input type="file" id="imp" accept=".json,application/json"></div>';
+  h += '<div class="mut" style="text-align:center;font-size:12px;margin:14px 0">Basket Stats · versione ' + APP_VERSION + '</div>';
   $('#v-menu').innerHTML = h;
   updateConvUI(C); setStatus();
 }
@@ -1119,7 +1283,7 @@ function pickStarter(id) {
 function launchGame() {
   const x = startCtx; if (!x) return;
   if (S && !confirm('La partita corrente verrà archiviata. Continuare?')) return;
-  const c = getConv(); c.starters = x.starters.slice(); saveJSON(CKEY, c);   // ricordo il quintetto per la prossima volta
+  const c = getConv(); c.starters = x.starters.slice(); saveConv(c);   // ricordo il quintetto per la prossima volta
   const first = x.mine.filter(p => x.starters.includes(p.id)), rest = x.mine.filter(p => !x.starters.includes(p.id));
   const myT = {name: x.myName, players: [...first, ...rest]};
   const cfg = {teams: x.side === 0 ? [myT, x.oppT] : [x.oppT, myT], qlen: x.qlen, nq: x.nq, name: x.gameName,
@@ -1151,6 +1315,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
+const APP_VERSION = '1.15.0';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
@@ -1162,11 +1327,14 @@ function applyTheme() {
 }
 function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
 const H = {
+  editfouls: b => { const id = b.dataset.id || (sel && sel.pid); if (id) openFouls(id); },
+  fdel: b => foulDelete(+b.dataset.fi),
+  fdelx: () => foulDeleteExtra(),
+  fadd: () => foulAdd(),
   shotpid: b => {
     const id = b.dataset.id;
     shotFilter = {t: 'all', pid: (id === 'all' || shotFilter.pid === id) ? 'all' : id};
     render();
-    if (shotFilter.pid !== 'all') { const m = document.getElementById('shotmap'); if (m) m.scrollIntoView({behavior: 'smooth', block: 'start'}); }
   },
   theme: () => setTheme({auto: 'light', light: 'dark', dark: 'auto'}[getTheme()]),
   settheme: b => setTheme(b.dataset.v),
@@ -1198,6 +1366,8 @@ const H = {
   endgame: endGame,
   hres: b => resumeGame(b.dataset.id),
   expteam: exportTeam,
+  newteam: newTeam,
+  delteam: deleteTeam,
   accin: () => accAuth('in'),
   accnew: () => accAuth('new'),
   accreset: accReset,
@@ -1205,8 +1375,9 @@ const H = {
   syncnow: () => syncNow(true),
   to: b => doTimeout(+b.dataset.t),
   cb: b => benchFoul(+b.dataset.t, b.dataset.k),
+  cbd: b => benchFoulDel(+b.dataset.t, b.dataset.k),
   foul: b => doFoul(b.dataset.ft),
-  color: b => { const c = getConv(); c.color = b.dataset.v; saveJSON(CKEY, c); render(); },
+  color: b => { const c = getConv(); c.color = b.dataset.v; saveConv(c); render(); },
   rename: () => { const v = prompt('Nome della partita', S.name || ''); if (v === null) return; S.name = v.trim(); save(); render(); },
   oa: b => oppAction(+b.dataset.t, b.dataset.k),
   addmy: addMyPlayer,
@@ -1233,12 +1404,14 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const id = e.target.id;
   if (e.target.dataset && e.target.dataset.cv) { convChange(e.target); return; }
+  if (e.target.dataset && e.target.dataset.fi !== undefined) { foulChange(+e.target.dataset.fi, e.target.value); return; }
   if (id === 'sub-m' || id === 'sub-s') {
     subForm.m = +$('#sub-m').value; subForm.s = +$('#sub-s').value || 0;
     const c = subTime(); subForm.m = Math.floor(c / 60); subForm.s = c % 60; render(); return;
   }
-  if (id === 'cside') { const c = getConv(); c.side = +e.target.value; saveJSON(CKEY, c); return; }
+  if (id === 'cside') { const c = getConv(); c.side = +e.target.value; saveConv(c); return; }
   if (id === 'impteam') { if (e.target.files[0]) importTeam(e.target.files[0]); return; }
+  if (id === 'teamsel' || id === 'teamsel2') { switchTeam(e.target.value); return; }
   if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveRoster(r); return; }
   if (id === 'sf-t') { shotFilter = {t: e.target.value, pid: 'all'}; render(); }
   else if (id === 'sf-p') { shotFilter.pid = e.target.value; render(); }
