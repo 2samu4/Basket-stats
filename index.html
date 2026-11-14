@@ -1208,8 +1208,6 @@ function renderMenu() {
       '<div class="row"><button class="stop" data-a="endgame">Termina partita</button><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
       '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div></div>';
   }
-  const th = getTheme();
-  h += '<div class="card"><h3>Aspetto</h3><div class="th-seg">' + [['auto', 'Automatico'], ['light', '☀ Chiaro'], ['dark', '☾ Scuro']].map(x => '<button data-a="settheme" data-v="' + x[0] + '"' + (th === x[0] ? ' class="on"' : '') + '>' + x[1] + '</button>').join('') + '</div><div class="mut" style="font-size:13px;margin-top:6px">Automatico segue il tema del dispositivo.</div></div>';
   h += accountHTML();
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
   const ngOpen = menuOpen.newgame !== undefined ? menuOpen.newgame : !S;
@@ -1315,7 +1313,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
-const APP_VERSION = '1.15.0';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
+const APP_VERSION = '1.15.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
