@@ -1,4 +1,4 @@
-const CACHE = 'bbstats-v1.15.1';
+const CACHE = 'bbstats-v1.16.1';
 const FILES = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png', './firebase-config.js',
   './vendor/firebase-app-compat.js', './vendor/firebase-auth-compat.js', './vendor/firebase-firestore-compat.js'];
 

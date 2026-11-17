@@ -173,7 +173,14 @@ nav button.th{flex:0 0 52px;font-size:19px;padding:10px 0}
 .fb.bon i.on{background:var(--ko);border-color:var(--ko);box-shadow:0 0 8px color-mix(in srgb,var(--ko) 80%,transparent)}
 .fb .bt{background:var(--ko);color:#fff;border-radius:6px;padding:2px 7px;font-size:11px;animation:bp 1.4s ease-in-out infinite}
 @keyframes bp{50%{opacity:.55}}
-@media(max-width:520px){.fb{gap:4px;padding:3px 7px}.fb i{width:9px;height:9px}.fb .fl,.fb .bt{display:none}.fb .fn{font-size:13px}}
+.fb.pf{max-width:100%;flex-wrap:wrap;justify-content:center;cursor:pointer}
+.fb.pf.off{cursor:default;opacity:.55}
+.fb.pf .lamps{flex-wrap:wrap;justify-content:center;gap:5px}
+.fb.pf i{width:30px;height:30px;font-style:normal;font-size:12px;font-weight:800;letter-spacing:0;display:inline-flex;align-items:center;justify-content:center;color:transparent}
+.fb.pf i.on{color:#1a1000}
+.fb.pf i.on.ko{background:var(--ko);border-color:var(--ko);color:#fff;box-shadow:0 0 8px color-mix(in srgb,var(--ko) 70%,transparent)}
+.fb.pf.bon i.on{background:var(--ko);border-color:var(--ko);color:#fff}
+@media(max-width:520px){.fb{gap:4px;padding:3px 7px}.fb i{width:9px;height:9px}.fb .fl,.fb .bt{display:none}.fb .fn{font-size:13px}.fb.pf i{width:24px;height:24px;font-size:10px}}
 .clk{border-radius:12px;background:var(--panel2);border:1px solid var(--line);padding:2px 14px}
 h3{font-size:18px}
 th{text-transform:uppercase;letter-spacing:.4px;font-size:12px}
@@ -1107,6 +1114,18 @@ function teamCol(t) {
   if (bench.length) h += '<div class="bn"><div class="fh">Panchina</div>' + bench.map(p => '<button class="bc' + (sel && sel.pid === p.id ? ' sel' : '') + '" data-a="sel" data-t="' + t + '" data-pid="' + p.id + '">' + esc(p.num) + ' ' + esc(p.name) + '</button>').join('') + '</div>';
   return h + extrasHTML(t) + '</div>';
 }
+function playerFoulBar(pid) {
+  const list = pid ? (S.fouls || []).filter(x => x.pid === pid).map(x => x.type) : [];
+  const n = pid ? S.stats[pid].pf : 0;
+  while (list.length < n) list.push('•');                       // falli senza dettaglio (partite vecchie)
+  const tot = Math.max(5, list.length);
+  let l = '';
+  for (let i = 0; i < tot; i++) {
+    const t = list[i];
+    l += t ? '<i class="on' + (/^[UDTF]/.test(t) ? ' ko' : '') + '">' + t + '</i>' : '<i></i>';
+  }
+  return '<div class="fb pf' + (n >= 5 ? ' bon' : '') + (pid ? '' : ' off') + '"' + (pid ? ' data-a="editfouls" title="Modifica i falli"' : '') + '><span class="fl">FALLI</span><span class="lamps">' + l + '</span><span class="fn">' + (pid ? n : '–') + '</span>' + (n >= 5 ? '<span class="bt">FUORI</span>' : '') + '</div>';
+}
 function padHTML() {
   const p = sel ? findPlayer(S, sel.pid) : null, d = sel ? '' : ' disabled';
   const b = (cls, k, txt) => '<button class="' + cls + '" data-a="s" data-k="' + k + '"' + d + '>' + txt + '</button>';
@@ -1119,7 +1138,8 @@ function padHTML() {
     }).join('') + '</div><div class="grid3" style="margin-top:8px;grid-template-columns:1fr 1fr">' +
     b('', 'pf', 'Fallo') +
     '<button class="ut" data-a="undo">↶ Annulla</button></div>' +
-    '<button class="ut" data-a="editfouls" style="width:100%;margin-top:8px"' + d + '>✎ Modifica falli' + (p ? ' di ' + esc(p.name) : '') + '</button></div>';
+    '<button class="ut" data-a="editfouls" style="width:100%;margin-top:8px"' + d + '>✎ Modifica falli' + (p ? ' di ' + esc(p.name) : '') + '</button>' +
+    '<div style="text-align:center;margin-top:10px">' + playerFoulBar(sel ? sel.pid : null) + '</div></div>';
 }
 function foulBar(t) {
   const n = S.tf[t] || 0, bon = n >= 5;
@@ -1313,7 +1333,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
-const APP_VERSION = '1.15.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
+const APP_VERSION = '1.16.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
