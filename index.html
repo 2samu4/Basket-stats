@@ -679,14 +679,14 @@ function doFoul(ft) {
   const x = foulCtx, F = FOULS[ft]; if (!x || !F) return;
   snap();
   S.fouls = S.fouls || [];
-  const pid = F.pl ? x.pid : null, wasOut = isOut(pid);
+  const pid = F.pl ? x.pid : null;
   S.fouls.push({t: x.t, pid, type: ft, q: S.quarter, c: S.clock});
   if (F.pl) { if (pid) S.stats[pid].pf++; else S.oppStats.pf++; }
   if (F.tm) S.tf[x.t]++;
   const who = pid ? label(findPlayer(S, pid)) + ' (' + S.teams[x.t].name + ')' : S.teams[x.t].name;
   addLog(who + ': Fallo ' + ft + ' – ' + F.n.toLowerCase() + (F.tm ? '' : ' (non di squadra' + (F.pl ? '' : ', non al giocatore') + ')'));
   foulCtx = null; closeModal(); save(); render();
-  checkFoulOut(pid, wasOut);
+  checkFoulOut(pid);
 }
 /* ---------- giocatore fuori per falli ----------
    5 falli, oppure 2 falli tra antisportivi (U) e squalificanti (D) in qualsiasi combinazione */
@@ -699,8 +699,8 @@ function outReason(pid) {
 }
 const isOut = pid => !!outReason(pid);
 function teamOf(pid) { return S.teams.findIndex(T => T.players.some(x => x.id === pid)); }
-function checkFoulOut(pid, wasOut) {
-  if (!pid || wasOut || !isOut(pid)) return;
+function checkFoulOut(pid) {
+  if (!pid || !isOut(pid)) return;
   const t = teamOf(pid); if (t < 0 || S.teams[t].isOpp) return;
   if (!S.teams[t].onCourt.includes(pid)) { toast(label(findPlayer(S, pid)) + ' è fuori per falli'); return; }
   const bench = S.teams[t].players.filter(p => !S.teams[t].onCourt.includes(p.id) && !isOut(p.id)).sort(byNum);
@@ -739,12 +739,12 @@ function openFouls(pid) {
   efCtx = pid; openModal(h);
 }
 let efCtx = null;
-function fouled(msg, wasOut) { recompute(S); addLog(msg); save(); render(); openFouls(efCtx); if (wasOut !== undefined) checkFoulOut(efCtx, wasOut); }
+function fouled(msg, check) { recompute(S); addLog(msg); save(); render(); openFouls(efCtx); if (check) checkFoulOut(efCtx); }
 function foulWho(pid) { return label(findPlayer(S, pid)); }
 function foulChange(i, type) {
   const x = S.fouls[i]; if (!x || !FOULS[type] || x.type === type) return;
-  snap(); const old = x.type, wo = isOut(x.pid); x.type = type;
-  fouled(foulWho(x.pid) + ': correzione fallo ' + old + ' → ' + type, wo);
+  snap(); const old = x.type; x.type = type;
+  fouled(foulWho(x.pid) + ': correzione fallo ' + old + ' → ' + type, true);
 }
 function foulDelete(i) {
   const x = S.fouls[i]; if (!x) return;
@@ -758,10 +758,9 @@ function foulDeleteExtra() {
 function foulAdd() {
   const type = $('#fa-t').value, q = +$('#fa-q').value; if (!FOULS[type]) return;
   const t = S.teams.findIndex(T => T.players.some(x => x.id === efCtx));
-  const wo = isOut(efCtx);
   snap(); (S.fouls = S.fouls || []).push({t, pid: efCtx, type, q, c: q === S.quarter ? S.clock : (S.clocks[q] != null ? S.clocks[q] : 0)});
   S.stats[efCtx].pf++;
-  fouled(foulWho(efCtx) + ': aggiunto fallo ' + type + ' (' + periodName(q, S.nq) + ')', wo);
+  fouled(foulWho(efCtx) + ': aggiunto fallo ' + type + ' (' + periodName(q, S.nq) + ')', true);
 }
 function foulSum(g, t) {
   const f = (g.fouls || []).filter(x => x.t === t);
@@ -1176,7 +1175,8 @@ function padHTML() {
     b('', 'pf', 'Fallo') +
     '<button class="ut" data-a="undo">↶ Annulla</button></div>' +
     '<button class="ut" data-a="editfouls" style="width:100%;margin-top:8px"' + d + '>✎ Modifica falli' + (p ? ' di ' + esc(p.name) : '') + '</button>' +
-    '<div style="text-align:center;margin-top:10px">' + playerFoulBar(sel ? sel.pid : null) + '</div></div>';
+    '<div style="text-align:center;margin-top:10px">' + playerFoulBar(sel ? sel.pid : null) + '</div>' +
+    (sel && isOut(sel.pid) && S.teams[sel.t].onCourt.includes(sel.pid) ? '<button class="stop" data-a="askrepl" style="width:100%;margin-top:8px">Sostituisci ' + esc(p.name) + ' (fuori per falli)</button>' : '') + '</div>';
 }
 function foulBar(t) {
   const n = S.tf[t] || 0, bon = n >= 5;
@@ -1370,7 +1370,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
-const APP_VERSION = '1.17.0';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
+const APP_VERSION = '1.17.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
@@ -1383,6 +1383,7 @@ function applyTheme() {
 function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
 const H = {
   editfouls: b => { const id = b.dataset.id || (sel && sel.pid); if (id) openFouls(id); },
+  askrepl: () => { if (sel) checkFoulOut(sel.pid); },
   fosub: b => foulOutSub(b.dataset.out, b.dataset.in),
   fdel: b => foulDelete(+b.dataset.fi),
   fdelx: () => foulDeleteExtra(),
