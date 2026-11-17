@@ -144,6 +144,9 @@ table.o th:nth-child(2),table.o td:nth-child(2){text-align:right}
 .bn .fh{flex:1 0 100%;margin:4px 0 0}
 .bc{padding:6px 10px;font-size:14px;min-height:40px}
 .bc.sel{outline:3px solid var(--acc)}
+.bc.out,button.out{border-color:var(--ko);background:var(--outbg);color:var(--bonus)}
+.pc.out .n,.pc.out .nm{color:var(--bonus)}
+.pc.out .ps::after{content:' · FUORI';font-weight:700;color:var(--bonus)}
 .endcard{border-color:var(--acc)}
 .fh{color:var(--mut);font-size:13px;margin:10px 0 4px}
 .fgrp{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
@@ -676,14 +679,47 @@ function doFoul(ft) {
   const x = foulCtx, F = FOULS[ft]; if (!x || !F) return;
   snap();
   S.fouls = S.fouls || [];
-  const pid = F.pl ? x.pid : null;
+  const pid = F.pl ? x.pid : null, wasOut = isOut(pid);
   S.fouls.push({t: x.t, pid, type: ft, q: S.quarter, c: S.clock});
   if (F.pl) { if (pid) S.stats[pid].pf++; else S.oppStats.pf++; }
   if (F.tm) S.tf[x.t]++;
   const who = pid ? label(findPlayer(S, pid)) + ' (' + S.teams[x.t].name + ')' : S.teams[x.t].name;
   addLog(who + ': Fallo ' + ft + ' – ' + F.n.toLowerCase() + (F.tm ? '' : ' (non di squadra' + (F.pl ? '' : ', non al giocatore') + ')'));
   foulCtx = null; closeModal(); save(); render();
+  checkFoulOut(pid, wasOut);
 }
+/* ---------- giocatore fuori per falli ----------
+   5 falli, oppure 2 falli tra antisportivi (U) e squalificanti (D) in qualsiasi combinazione */
+function outReason(pid) {
+  if (!pid || !S.stats[pid]) return '';
+  const ud = (S.fouls || []).filter(x => x.pid === pid && /^[UD]/.test(x.type)).length;
+  if (S.stats[pid].pf >= 5) return '5 falli';
+  if (ud >= 2) return '2 falli antisportivi/squalificanti';
+  return '';
+}
+const isOut = pid => !!outReason(pid);
+function teamOf(pid) { return S.teams.findIndex(T => T.players.some(x => x.id === pid)); }
+function checkFoulOut(pid, wasOut) {
+  if (!pid || wasOut || !isOut(pid)) return;
+  const t = teamOf(pid); if (t < 0 || S.teams[t].isOpp) return;
+  if (!S.teams[t].onCourt.includes(pid)) { toast(label(findPlayer(S, pid)) + ' è fuori per falli'); return; }
+  const bench = S.teams[t].players.filter(p => !S.teams[t].onCourt.includes(p.id) && !isOut(p.id)).sort(byNum);
+  const who = label(findPlayer(S, pid));
+  if (!bench.length) { toast(who + ' è fuori per falli: nessun giocatore disponibile in panchina'); return; }
+  openModal('<h3 style="color:var(--bonus)">' + esc(who) + ' è fuori per falli</h3><div class="mut" style="margin-bottom:10px">' + outReason(pid) + '. Chi entra al suo posto?</div>' +
+    '<div class="pchips" style="justify-content:flex-start">' + bench.map(p => '<button data-a="fosub" data-out="' + pid + '" data-in="' + p.id + '">' + esc(label(p)) + ' <small class="mut">' + S.stats[p.id].pf + ' f</small></button>').join('') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button data-a="closemodal">Più tardi</button></div>');
+}
+function foulOutSub(outId, inId) {
+  const t = teamOf(outId), q = S.quarter, c = Math.max(0, Math.ceil(S.clock));
+  snap(); S.seq = (S.seq || 0) + 1; S.subs = S.subs || [];
+  S.subs.push({t, q, c, out: outId, in: inId, seq: S.seq});
+  const err = validateSubs(S, q, t);
+  if (err) { S.subs.pop(); S.seq--; undoStack.pop(); toast(err); closeModal(); return; }
+  addLog('Cambio ' + S.teams[t].name + ' (fuori per falli): esce ' + label(findPlayer(S, outId)) + ', entra ' + label(findPlayer(S, inId)) + ' (' + periodName(q, S.nq) + ' ' + fmt(c) + ')', q, c);
+  closeModal(); save(); render(); toast('Cambio registrato');
+}
+
 /* ---------- modifica dei falli di un giocatore ---------- */
 const PFTYPES = Object.keys(FOULS).filter(k => FOULS[k].pl);
 function foulOpts(cur) { return PFTYPES.map(k => '<option value="' + k + '"' + (k === cur ? ' selected' : '') + '>' + k + ' – ' + esc(FOULS[k].n) + '</option>').join(''); }
@@ -703,12 +739,12 @@ function openFouls(pid) {
   efCtx = pid; openModal(h);
 }
 let efCtx = null;
-function fouled(msg) { recompute(S); addLog(msg); save(); render(); openFouls(efCtx); }
+function fouled(msg, wasOut) { recompute(S); addLog(msg); save(); render(); openFouls(efCtx); if (wasOut !== undefined) checkFoulOut(efCtx, wasOut); }
 function foulWho(pid) { return label(findPlayer(S, pid)); }
 function foulChange(i, type) {
   const x = S.fouls[i]; if (!x || !FOULS[type] || x.type === type) return;
-  snap(); const old = x.type; x.type = type;
-  fouled(foulWho(x.pid) + ': correzione fallo ' + old + ' → ' + type);
+  snap(); const old = x.type, wo = isOut(x.pid); x.type = type;
+  fouled(foulWho(x.pid) + ': correzione fallo ' + old + ' → ' + type, wo);
 }
 function foulDelete(i) {
   const x = S.fouls[i]; if (!x) return;
@@ -722,9 +758,10 @@ function foulDeleteExtra() {
 function foulAdd() {
   const type = $('#fa-t').value, q = +$('#fa-q').value; if (!FOULS[type]) return;
   const t = S.teams.findIndex(T => T.players.some(x => x.id === efCtx));
+  const wo = isOut(efCtx);
   snap(); (S.fouls = S.fouls || []).push({t, pid: efCtx, type, q, c: q === S.quarter ? S.clock : (S.clocks[q] != null ? S.clocks[q] : 0)});
   S.stats[efCtx].pf++;
-  fouled(foulWho(efCtx) + ': aggiunto fallo ' + type + ' (' + periodName(q, S.nq) + ')');
+  fouled(foulWho(efCtx) + ': aggiunto fallo ' + type + ' (' + periodName(q, S.nq) + ')', wo);
 }
 function foulSum(g, t) {
   const f = (g.fouls || []).filter(x => x.t === t);
@@ -994,7 +1031,7 @@ function renderSubs() {
   const subs = (S.subs || []).filter(s => s.t === t && s.q === q).sort(bySubTime);
   const starters = ((S.starts[q] && S.starts[q][t]) || []).map(nm).join(' · ');
   const future = q === S.quarter && c < Math.floor(S.clock);
-  const pbtn = (id, kind, cur) => '<button class="' + (cur === id ? 'go' : '') + '" data-a="' + kind + '" data-id="' + id + '">' + nm(id) + ' <small class="mut">' + S.stats[id].pf + ' f</small></button>';
+  const pbtn = (id, kind, cur) => '<button class="' + (cur === id ? 'go' : isOut(id) ? 'out' : '') + '" data-a="' + kind + '" data-id="' + id + '">' + nm(id) + ' <small class="mut">' + S.stats[id].pf + ' f</small></button>';
   $('#v-subs').innerHTML =
     '<div class="pchips" style="justify-content:flex-start;margin-bottom:10px">' + chips + '</div>' +
     '<div class="card"><h3>Quintetto iniziale · ' + periodName(q, S.nq) + '</h3><div>' + (starters || '<span class="mut">–</span>') + '</div>' +
@@ -1107,11 +1144,11 @@ function teamCol(t) {
   T.onCourt.slice().sort((x, y) => byNum(findPlayer(S, x), findPlayer(S, y))).forEach(pid => {
     const p = findPlayer(S, pid), st = S.stats[pid], cls = ['pc'];
     if (sel && sel.pid === pid) cls.push('sel');
-    if (st.pf >= 5) cls.push('out'); else if (st.pf >= 4) cls.push('warn');
+    if (isOut(pid)) cls.push('out'); else if (st.pf >= 4) cls.push('warn');
     h += '<button class="' + cls.join(' ') + '" data-a="sel" data-t="' + t + '" data-pid="' + pid + '"><span class="n">' + esc(p.num) + '</span><span class="nm">' + esc(p.name) + '</span><span class="ps">' + st.pts + ' pt · ' + (st.oreb + st.dreb) + ' rb · ' + st.ast + ' as · ' + st.pf + ' f</span></button>';
   });
   const bench = T.players.filter(p => !T.onCourt.includes(p.id)).sort(byNum);
-  if (bench.length) h += '<div class="bn"><div class="fh">Panchina</div>' + bench.map(p => '<button class="bc' + (sel && sel.pid === p.id ? ' sel' : '') + '" data-a="sel" data-t="' + t + '" data-pid="' + p.id + '">' + esc(p.num) + ' ' + esc(p.name) + '</button>').join('') + '</div>';
+  if (bench.length) h += '<div class="bn"><div class="fh">Panchina</div>' + bench.map(p => '<button class="bc' + (sel && sel.pid === p.id ? ' sel' : '') + (isOut(p.id) ? ' out' : '') + '" data-a="sel" data-t="' + t + '" data-pid="' + p.id + '">' + esc(p.num) + ' ' + esc(p.name) + '</button>').join('') + '</div>';
   return h + extrasHTML(t) + '</div>';
 }
 function playerFoulBar(pid) {
@@ -1333,7 +1370,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
-const APP_VERSION = '1.16.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
+const APP_VERSION = '1.17.0';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
@@ -1346,6 +1383,7 @@ function applyTheme() {
 function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} applyTheme(); if (view === 'menu') render(); }
 const H = {
   editfouls: b => { const id = b.dataset.id || (sel && sel.pid); if (id) openFouls(id); },
+  fosub: b => foulOutSub(b.dataset.out, b.dataset.in),
   fdel: b => foulDelete(+b.dataset.fi),
   fdelx: () => foulDeleteExtra(),
   fadd: () => foulAdd(),
