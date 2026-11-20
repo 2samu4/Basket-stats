@@ -249,7 +249,7 @@ const periodName = (q,nq) => q <= nq ? 'Q' + q : 'OT' + (q - nq);
 const loadJSON = k => { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } };
 const saveJSON = (k,v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e) {} };
 
-const KEY = 'bbstats_current', HKEY = 'bbstats_history', TKEY = 'bbstats_teams', LKEY = 'bbstats_askloc';
+const KEY = 'bbstats_current', HKEY = 'bbstats_history', TKEY = 'bbstats_teams', LKEY = 'bbstats_askloc', AKEY = 'bbstats_askast', RBKEY = 'bbstats_askreb';
 const RKEY = 'bbstats_roster', CKEY = 'bbstats_conv', SQKEY = 'bbstats_squadre';
 
 /* ---------- le mie squadre (anagrafiche) e convocati ----------
@@ -345,6 +345,8 @@ let view = 'game';
 let undoStack = [];
 let pending = null;
 let askLoc = localStorage.getItem(LKEY) !== '0';
+let askAst = localStorage.getItem(AKEY) !== '0';
+let askReb = localStorage.getItem(RBKEY) !== '0';
 let shotFilter = {t:'all', pid:'all'};
 let menuOpen = {};
 let gdraft = '';                 // nome partita digitato nel form (non perso se il Menu si ridisegna)               // riquadri del Menu aperti/chiusi dall'utente
@@ -617,7 +619,7 @@ function newGame(cfg) {
   });
   const stats = {};
   teams.forEach(t => t.players.forEach(p => stats[p.id] = STAT0()));
-  return {id: Date.now(), date: new Date().toISOString(), name: cfg.name || '', colors: cfg.colors || null, teams, stats, shots: [], to: [[], []], oppStats: {m1:0,m2:0,m3:0,pf:0}, score: [0,0],
+  return {id: Date.now(), date: new Date().toISOString(), name: cfg.name || '', colors: cfg.colors || null, teams, stats, shots: [], to: [[], []], oppStats: {m1:0,m2:0,m3:0,pf:0,reb:0}, score: [0,0],
           quarter: 1, qlen: cfg.qlen * 60, nq: cfg.nq, clock: cfg.qlen * 60, running: false, tf: [0,0], log: [],
           starts: {1: teams.map(T => T.isOpp ? [] : T.players.slice(0, 5).map(p => p.id))}, subs: [], pts: [], clocks: {1: cfg.qlen * 60}, maxq: 1, seq: 0};
 }
@@ -892,6 +894,46 @@ function apply(k, t, pid, loc) {
   const made = /^m/.test(k);
   addLog(label(p) + ' (' + S.teams[t].name + '): ' + NAMES[k] + (made ? '  [' + S.score[0] + '-' + S.score[1] + ']' : ''));
   save(); render();
+  if (made && /^m[23]$/.test(k) && askAst) askAssist(t, pid);
+  if (/^x[123]$/.test(k) && askReb) askRebound(t, pid);
+}
+/* dopo un tiro sbagliato chiede chi ha preso il rimbalzo: un compagno (offensivo) o un avversario */
+let reboundCtx = null;
+function askRebound(t, shooter) {
+  const mates = S.teams[t].onCourt.slice().sort((a, b) => byNum(findPlayer(S, a), findPlayer(S, b)));
+  reboundCtx = {t, shooter};
+  openModal('<h3>Rimbalzo</h3><div class="mut" style="margin-bottom:10px">Tiro sbagliato di ' + esc(label(findPlayer(S, shooter))) + ': chi ha preso il rimbalzo?</div>' +
+    '<div class="fh">Compagni (rimbalzo offensivo)</div><div class="pchips" style="justify-content:flex-start">' + mates.map(id => '<button data-a="rebpick" data-id="' + id + '">' + esc(label(findPlayer(S, id))) + ' <small class="mut">' + (S.stats[id].oreb + S.stats[id].dreb) + ' rb</small></button>').join('') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button class="stop" data-a="rebopp">Avversario</button><button data-a="closemodal">Nessuno</button></div>');
+}
+function reboundPick(id) {
+  const c = reboundCtx; reboundCtx = null;
+  if (!c) { closeModal(); return; }
+  if (id === 'opp') {
+    S.oppStats.reb = (S.oppStats.reb || 0) + 1;
+    addLog(S.teams[1 - c.t].name + ': Rimbalzo');
+  } else if (S.stats[id]) {
+    S.stats[id].oreb++;
+    addLog(label(findPlayer(S, id)) + ' (' + S.teams[c.t].name + '): Rimbalzo offensivo');
+  }
+  closeModal(); save(); render();
+}
+/* dopo un canestro dal campo chiede chi ha fatto l'assist (niente snapshot: "Annulla" toglie canestro e assist insieme) */
+function askAssist(t, scorer) {
+  const mates = S.teams[t].onCourt.filter(id => id !== scorer).sort((a, b) => byNum(findPlayer(S, a), findPlayer(S, b)));
+  if (!mates.length) return;
+  assistCtx = {t, scorer};
+  openModal('<h3>Assist</h3><div class="mut" style="margin-bottom:10px">Canestro di ' + esc(label(findPlayer(S, scorer))) + ': chi ha fatto l\'assist?</div>' +
+    '<div class="pchips" style="justify-content:flex-start">' + mates.map(id => '<button data-a="astpick" data-id="' + id + '">' + esc(label(findPlayer(S, id))) + ' <small class="mut">' + S.stats[id].ast + ' as</small></button>').join('') + '</div>' +
+    '<div class="row" style="margin-top:12px"><button data-a="closemodal">Nessun assist</button></div>');
+}
+let assistCtx = null;
+function assistPick(id) {
+  const c = assistCtx; assistCtx = null;
+  if (!c || !S.stats[id]) { closeModal(); return; }
+  S.stats[id].ast++;
+  addLog(label(findPlayer(S, id)) + ' (' + S.teams[c.t].name + '): Assist a ' + label(findPlayer(S, c.scorer)));
+  closeModal(); save(); render();
 }
 function oppAction(t, k) {
   if (k === 'pf') { openFoul(t, null); return; }
@@ -1137,7 +1179,7 @@ function teamCol(t) {
     const ob = (cls, k, big, small) => '<button class="' + cls + '" data-a="oa" data-t="' + t + '" data-k="' + k + '"><span class="ob">' + big + '</span><span class="os">' + small + '</span></button>';
     return '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>' +
       '<div class="grid2">' + ob('ok', 'm1', '+1', 'Tiro libero · ' + o.m1) + ob('ok', 'm2', '+2', 'Da 2 · ' + o.m2) + ob('ok', 'm3', '+3', 'Da 3 · ' + o.m3) + ob('ko', 'pf', 'Fallo', 'Falli · ' + o.pf) +
-      '</div><div class="grid3m">' + ['1', '2', '3'].map(n => '<button class="ko sm" data-a="oa" data-t="' + t + '" data-k="d' + n + '"' + (S.score[t] >= +n ? '' : ' disabled') + '>−' + n + '</button>').join('') + '</div>' + extrasHTML(t) + '</div>';
+      '</div><div class="grid3m">' + ['1', '2', '3'].map(n => '<button class="ko sm" data-a="oa" data-t="' + t + '" data-k="d' + n + '"' + (S.score[t] >= +n ? '' : ' disabled') + '>−' + n + '</button>').join('') + '</div><div class="mut" style="font-size:13px;text-align:center;margin:6px 0">Rimbalzi · ' + (o.reb || 0) + '</div>' + extrasHTML(t) + '</div>';
   }
   let h = '<div class="col ' + jc(t) + '"><div class="ch"><span>' + chip(t) + esc(T.name) + '</span><span class="tf ' + (S.tf[t] >= 5 ? 'bonus' : '') + '">Falli ' + S.tf[t] + (S.tf[t] >= 5 ? ' · BONUS' : '') + '</span></div>';
   T.onCourt.slice().sort((x, y) => byNum(findPlayer(S, x), findPlayer(S, y))).forEach(pid => {
@@ -1198,7 +1240,7 @@ function renderGame() {
 const COLS = ['#','Giocatore','MIN','PTS','TC','3P','TL','RO','RD','RT','AS','RUB','STO','PP','F','+/-'];
 function oppBox(g, T, t) {
   const o = g.oppStats || {m1:0,m2:0,m3:0,pf:0};
-  return '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table class="o"><thead><tr><th>Punti</th><th>Da 3</th><th>Da 2</th><th>Liberi</th><th>Falli</th></tr></thead><tbody><tr><td><b>' + g.score[t] + '</b></td><td>' + o.m3 + '</td><td>' + o.m2 + '</td><td>' + o.m1 + '</td><td>' + o.pf + '</td></tr></tbody></table></div>';
+  return '<div class="h2"><span>' + esc(T.name) + '</span><span>' + g.score[t] + '</span></div><div class="tw"><table class="o"><thead><tr><th>Punti</th><th>Da 3</th><th>Da 2</th><th>Liberi</th><th>Falli</th><th>Rimb.</th></tr></thead><tbody><tr><td><b>' + g.score[t] + '</b></td><td>' + o.m3 + '</td><td>' + o.m2 + '</td><td>' + o.m1 + '</td><td>' + o.pf + '</td><td>' + (o.reb || 0) + '</td></tr></tbody></table></div>';
 }
 function parziali(g) {
   if (!g.pts || !g.pts.length) return '';
@@ -1263,7 +1305,9 @@ function renderMenu() {
   if (S) {
     h += '<div class="card"><h3>Partita corrente</h3>' + (S.name ? '<div style="font-weight:700;color:var(--acc)">' + esc(S.name) + '</div>' : '') + '<div>' + esc(S.teams[0].name) + ' <b>' + S.score[0] + ' – ' + S.score[1] + '</b> ' + esc(S.teams[1].name) + '</div>' +
       '<div class="row"><button class="stop" data-a="endgame">Termina partita</button><button data-a="rename">Rinomina partita</button><button data-a="addplayer">+ Aggiungi giocatore</button><button data-a="json">Esporta (JSON)</button><button data-a="csv">Esporta CSV</button></div>' +
-      '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div></div>';
+      '<div class="row"><label class="chk"><input type="checkbox" id="askloc"' + (askLoc ? ' checked' : '') + '> Chiedi la posizione di ogni tiro (mappa tiri)</label></div>' +
+      '<div class="row"><label class="chk"><input type="checkbox" id="askast"' + (askAst ? ' checked' : '') + '> Chiedi chi ha fatto l\'assist su ogni canestro</label></div>' +
+      '<div class="row"><label class="chk"><input type="checkbox" id="askreb"' + (askReb ? ' checked' : '') + '> Chiedi chi ha preso il rimbalzo su ogni tiro sbagliato</label></div></div>';
   }
   h += accountHTML();
   const roOpen = menuOpen.roster !== undefined ? menuOpen.roster : !R.players.length;
@@ -1357,7 +1401,7 @@ function toCSV(g) {
   g.teams.forEach((T, t) => {
     if (!T.isOpp) return;
     const o = g.oppStats || {m1:0,m2:0,m3:0,pf:0};
-    rows.push([T.name, '', 'Totale squadra', '', g.score[t], o.m2 + o.m3, '', o.m3, '', o.m1, '', '', '', '', '', '', '', '', o.pf, '']);
+    rows.push([T.name, '', 'Totale squadra', '', g.score[t], o.m2 + o.m3, '', o.m3, '', o.m1, '', '', '', o.reb || 0, '', '', '', '', o.pf, '']);
   });
   return '\ufeff' + rows.map(r => r.map(v => '"' + String(v).replace(/"/g, '""') + '"').join(';')).join('\r\n');
 }
@@ -1370,7 +1414,7 @@ function download(name, text, mime) {
 const gname = g => ((g.name ? g.name + '_' : '') + g.teams[0].name + '_' + g.teams[1].name + '_' + g.date.slice(0, 10)).replace(/[^\w\-]+/g, '_');
 
 /* ---------- eventi ---------- */
-const APP_VERSION = '1.17.1';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
+const APP_VERSION = '1.19.0';   // x.y.z: nuova funzione = y+1, correzione = z+1. Tenere uguale a sw.js (bbstats-vX.Y.Z) e al nome dello zip
 const THKEY = 'bbstats_theme';
 function getTheme() { try { return localStorage.getItem(THKEY) || 'auto'; } catch (e) { return 'auto'; } }
 function applyTheme() {
@@ -1384,6 +1428,9 @@ function setTheme(t) { try { localStorage.setItem(THKEY, t); } catch (e) {} appl
 const H = {
   editfouls: b => { const id = b.dataset.id || (sel && sel.pid); if (id) openFouls(id); },
   askrepl: () => { if (sel) checkFoulOut(sel.pid); },
+  rebpick: b => reboundPick(b.dataset.id),
+  rebopp: () => reboundPick('opp'),
+  astpick: b => assistPick(b.dataset.id),
   fosub: b => foulOutSub(b.dataset.out, b.dataset.in),
   fdel: b => foulDelete(+b.dataset.fi),
   fdelx: () => foulDeleteExtra(),
@@ -1472,6 +1519,8 @@ document.addEventListener('change', e => {
   if (id === 'rname') { const r = getRoster(); r.name = e.target.value.trim(); saveRoster(r); return; }
   if (id === 'sf-t') { shotFilter = {t: e.target.value, pid: 'all'}; render(); }
   else if (id === 'sf-p') { shotFilter.pid = e.target.value; render(); }
+  else if (id === 'askreb') { askReb = e.target.checked; localStorage.setItem(RBKEY, askReb ? '1' : '0'); }
+  else if (id === 'askast') { askAst = e.target.checked; localStorage.setItem(AKEY, askAst ? '1' : '0'); }
   else if (id === 'askloc') { askLoc = e.target.checked; localStorage.setItem(LKEY, askLoc ? '1' : '0'); }
   else if (id === 'imp' && e.target.files[0]) {
     const rd = new FileReader();
